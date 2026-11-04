@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { ArrowUp, Calculator, ListChecks, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RichText } from "@/components/rich-text";
 
 const SUGGESTIONS = [
   "How did last month compare with the month before?",
@@ -13,23 +14,6 @@ const SUGGESTIONS = [
 ];
 
 const MAX_CHARS = 1000;
-
-/** Renders **bold** as <strong>; everything else stays plain text (no HTML injection). */
-function RichText({ text }: { text: string }) {
-  return (
-    <>
-      {text.split(/(\*\*[^*]+\*\*)/g).map((chunk, i) =>
-        chunk.startsWith("**") && chunk.endsWith("**") ? (
-          <strong key={i} className="font-semibold">
-            {chunk.slice(2, -2)}
-          </strong>
-        ) : (
-          chunk
-        ),
-      )}
-    </>
-  );
-}
 
 const TOOL_LABELS: Record<string, { label: string; Icon: typeof Calculator }> = {
   "tool-aggregate": { label: "Calculated from your sheet", Icon: Calculator },

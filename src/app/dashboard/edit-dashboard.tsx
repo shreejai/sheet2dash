@@ -27,7 +27,16 @@ import { saveDashboard } from "./actions";
 
 type Drag = { index: number; startY: number; dy: number; rects: DOMRect[]; target: number };
 
-export function EditDashboard({ spec, mapping }: { spec: DashboardSpec; mapping: ColumnMapping }) {
+export function EditDashboard({
+  spec,
+  mapping,
+  onSave = saveDashboard,
+}: {
+  spec: DashboardSpec;
+  mapping: ColumnMapping;
+  /** Where Done saves to: the database by default; the demo keeps it in the page. */
+  onSave?: (spec: DashboardSpec) => Promise<{ ok: true } | { ok: false; error: string }>;
+}) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [draft, setDraft] = useState<Widget[]>(spec.widgets);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -44,7 +53,7 @@ export function EditDashboard({ spec, mapping }: { spec: DashboardSpec; mapping:
 
   function done() {
     startSave(async () => {
-      const result = await saveDashboard({ version: 3, widgets: draft });
+      const result = await onSave({ version: 3, widgets: draft });
       if (result.ok) dialog.current?.close();
       else setError(result.error);
     });

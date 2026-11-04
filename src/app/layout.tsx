@@ -26,7 +26,7 @@ const clerkAppearance = {
 
 export const metadata: Metadata = {
   title: "Sheet2Dash",
-  description: "A live dashboard for a small cake business, built from its Google Sheet.",
+  description: "Turn a Google Sheet of orders into a live dashboard, straight from the sheet.",
 };
 
 export const viewport: Viewport = {

@@ -5,17 +5,26 @@ import { usePathname } from "next/navigation";
 import { LayoutGrid, MessageCircleQuestionMark } from "lucide-react";
 import { cn } from "cn";
 
-const LINKS = [
-  { href: "/dashboard", label: "Dashboard", Icon: LayoutGrid },
-  { href: "/dashboard/chat", label: "Ask", Icon: MessageCircleQuestionMark },
-] as const;
+// The signed-in app and the public demo have the same two sections.
+const SECTIONS = {
+  app: [
+    { href: "/dashboard", label: "Dashboard", Icon: LayoutGrid },
+    { href: "/dashboard/chat", label: "Ask", Icon: MessageCircleQuestionMark },
+  ],
+  demo: [
+    { href: "/demo", label: "Dashboard", Icon: LayoutGrid },
+    { href: "/demo/ask", label: "Ask", Icon: MessageCircleQuestionMark },
+  ],
+} as const;
+
+type Area = keyof typeof SECTIONS;
 
 /** Wide screens: the two sections as capsules in the top bar. */
-export function TopNav() {
+export function TopNav({ area = "app" }: { area?: Area }) {
   const pathname = usePathname();
   return (
     <nav aria-label="Sections" className="hidden items-center gap-1 sm:flex">
-      {LINKS.map(({ href, label }) => {
+      {SECTIONS[area].map(({ href, label }) => {
         const active = pathname === href;
         return (
           <Link
@@ -42,7 +51,7 @@ export function TopNav() {
  * an icon and a one-word label per section. Each tab fills half the bar, so
  * the targets are far larger than 44 pt.
  */
-export function TabBar() {
+export function TabBar({ area = "app" }: { area?: Area }) {
   const pathname = usePathname();
   return (
     <nav
@@ -50,7 +59,7 @@ export function TabBar() {
       className="material-bar fixed inset-x-0 bottom-0 z-40 flex shadow-[0_-0.5px_0_var(--separator)] sm:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      {LINKS.map(({ href, label, Icon }) => {
+      {SECTIONS[area].map(({ href, label, Icon }) => {
         const active = pathname === href;
         return (
           <Link

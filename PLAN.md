@@ -56,7 +56,7 @@ Next.js (App Router) · TypeScript · Tailwind · shadcn/ui · Clerk · Google P
 6. [x] Polling refresh + mobile polish
 7. [x] Chat
 8. [x] Widget editing (add/remove/change)
-9. [ ] Demo mode with sample data
+9. [x] Demo mode with sample data
 
 ## Later
 

@@ -9,9 +9,14 @@ export default function Home() {
         Connect your orders Google Sheet and get a live dashboard of revenue, popular cakes, regular
         customers and upcoming pickups.
       </p>
-      <Button size="lg" nativeButton={false} render={<Link href="/dashboard" />}>
-        Open dashboard
-      </Button>
+      <div className="flex flex-col items-center gap-3 sm:flex-row">
+        <Button size="lg" nativeButton={false} render={<Link href="/dashboard" />}>
+          Open dashboard
+        </Button>
+        <Button size="lg" variant="secondary" nativeButton={false} render={<Link href="/demo" />}>
+          Try the demo
+        </Button>
+      </div>
       <Link href="/privacy" className="mt-6 text-xs text-muted-foreground hover:text-foreground">
         Privacy
       </Link>
