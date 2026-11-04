@@ -4,7 +4,7 @@ import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { dashboardViewers, dashboards, sheetConnections } from "@/db/schema";
 import { getAccess, ownerDisplayName } from "@/lib/access";
-import { generateSpec, readSpec } from "@/lib/dashboard-spec";
+import { fitSpec, generateSpec, readSpec } from "@/lib/dashboard-spec";
 import { todayIso } from "@/lib/dates";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { ROLES, ROLE_KEYS, detectColumns, isCompleteMapping, parseOrders } from 
 import { disconnectSheet } from "./actions";
 import { ColumnForm } from "./column-form";
 import { ConnectSheetButton } from "./connect-sheet-button";
+import { EditDashboard } from "./edit-dashboard";
 import { DashboardView } from "./dashboard-view";
 import { LiveRegion } from "./live-region";
 import { Sharing } from "./sharing";
@@ -146,6 +147,9 @@ async function SheetSection({ searchParams }: Pick<PageProps<"/dashboard">, "sea
       .onConflictDoUpdate({ target: dashboards.userId, set: { spec, updatedAt: new Date() } });
   }
 
+  // Never show a widget whose column has since been un-mapped.
+  spec = fitSpec(spec, saved!);
+
   const viewers = isOwner
     ? (
         await db
@@ -160,6 +164,7 @@ async function SheetSection({ searchParams }: Pick<PageProps<"/dashboard">, "sea
     <div className="flex flex-col gap-6">
       <LiveRegion
         fetchedAt={fetchedAt}
+        actions={isOwner && <EditDashboard spec={spec} mapping={saved!} />}
         header={
           <div className="flex min-w-0 flex-col gap-0.5">
             <h1 className="title-2">

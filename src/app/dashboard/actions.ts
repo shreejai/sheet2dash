@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { dashboardViewers, dashboards, sheetConnections } from "@/db/schema";
 import { getAccess } from "@/lib/access";
-import { generateSpec } from "@/lib/dashboard-spec";
+import { fitSpec, generateSpec, readSpec } from "@/lib/dashboard-spec";
 import { getSheet, sheetTag } from "@/lib/google/cached-sheet";
 import { GoogleApiError, getSpreadsheetMeta } from "@/lib/google/sheets";
 import { ROLE_KEYS, isCompleteMapping, type ColumnMapping } from "@/lib/orders";
@@ -115,14 +115,51 @@ export async function saveColumnMapping(
     .set({ columnMapping: mapping, updatedAt: new Date() })
     .where(eq(sheetConnections.userId, userId));
 
-  // Rebuild the widget list for the confirmed columns.
-  const spec = generateSpec(mapping);
+  // Keep the owner's layout, minus widgets whose column is no longer mapped;
+  // a first-time setup gets the default layout.
+  const [stored] = await db
+    .select({ spec: dashboards.spec })
+    .from(dashboards)
+    .where(eq(dashboards.userId, userId));
+  const existing = readSpec(stored?.spec);
+  const spec = existing ? fitSpec(existing, mapping) : generateSpec(mapping);
   await db
     .insert(dashboards)
     .values({ userId, spec })
     .onConflictDoUpdate({ target: dashboards.userId, set: { spec, updatedAt: new Date() } });
 
   redirect("/dashboard");
+}
+
+/**
+ * Saves the owner's edited layout: which widgets show, their order and
+ * options. The spec from the browser is re-validated, and widgets needing an
+ * unmapped column are dropped.
+ */
+export async function saveDashboard(
+  input: unknown,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const userId = await requireUserId();
+  const db = getDb();
+  const [connection] = await db
+    .select({ columnMapping: sheetConnections.columnMapping })
+    .from(sheetConnections)
+    .where(eq(sheetConnections.userId, userId));
+  if (!connection?.columnMapping) return { ok: false, error: "Set up your sheet first." };
+
+  const spec = readSpec(input);
+  if (!spec) return { ok: false, error: "That layout couldn't be saved. Try again." };
+  const fitted = fitSpec(spec, connection.columnMapping);
+
+  await db
+    .insert(dashboards)
+    .values({ userId, spec: fitted })
+    .onConflictDoUpdate({
+      target: dashboards.userId,
+      set: { spec: fitted, updatedAt: new Date() },
+    });
+  refresh();
+  return { ok: true };
 }
 
 export async function disconnectSheet() {

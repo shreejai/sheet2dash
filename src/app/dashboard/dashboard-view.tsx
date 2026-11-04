@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { DashboardSpec, WidgetType } from "@/lib/dashboard-spec";
+import { setting, type DashboardSpec, type Widget, type WidgetType } from "@/lib/dashboard-spec";
 import { addDays, shortDate, type DateRange } from "@/lib/dates";
 import {
   PRESETS,
@@ -22,8 +22,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { UpcomingCalendar } from "./upcoming-calendar";
 import { CustomersTable, FlavoursChart, KpiRow, RevenueTrendChart, WeekdayChart } from "./widgets";
 
-const FULL_WIDTH = new Set<WidgetType>(["kpis", "revenueTrend"]);
-/** Widgets about what's coming up, not the selected period: shown above the date filter. */
+const FULL_WIDTH = new Set<WidgetType>(["upcoming", "kpis", "revenueTrend"]);
+/** Widgets about what's coming up, not the selected period: the date range doesn't apply. */
 const UNSCOPED = new Set<WidgetType>(["upcoming"]);
 
 /** Short segment labels so all five fit on a phone (HIG: at most about five on iPhone). */
@@ -65,23 +65,43 @@ export function DashboardView({
   const sameYear = period.range.from.slice(0, 4) === period.range.to.slice(0, 4);
   const rangeLabel = `${shortDate(period.range.from, !sameYear)} – ${shortDate(period.range.to, true)}`;
 
-  // KPIs live inside the period card; the rest go in the grid below it.
-  const hasKpis = spec.widgets.some((w) => w.type === "kpis");
-  const scoped = spec.widgets.filter((w) => !UNSCOPED.has(w.type) && w.type !== "kpis");
+  // Widgets render in the owner's order. The period card goes just before the
+  // first widget the date range applies to; if that widget is the key numbers,
+  // they sit inside the period card.
+  const firstScoped = spec.widgets.findIndex((w) => !UNSCOPED.has(w.type));
+  const items: React.ReactNode[] = [];
+  spec.widgets.forEach((w, i) => {
+    if (i === firstScoped) {
+      const merged = w.type === "kpis";
+      items.push(
+        <div key="period" className="min-w-0 lg:col-span-2">
+          {periodCard(merged ? w : null)}
+        </div>,
+      );
+      if (merged) return;
+    }
+    items.push(
+      <div key={w.id} className={`min-w-0 ${FULL_WIDTH.has(w.type) ? "lg:col-span-2" : ""}`}>
+        {w.type === "kpis" ? (
+          <Card>
+            <CardContent>{renderWidget(w, true)}</CardContent>
+          </Card>
+        ) : (
+          renderWidget(w)
+        )}
+      </div>,
+    );
+  });
 
-  return (
-    <div className="flex flex-col gap-4">
-      {spec.widgets
-        .filter((w) => UNSCOPED.has(w.type))
-        .map(({ id, type }) => (
-          <div key={id}>{renderWidget(type)}</div>
-        ))}
+  return <div className="grid gap-4 lg:grid-cols-2">{items}</div>;
 
-      {/*
-        The period card, styled like the pickups calendar: the period in large
-        type with its dates, the range control beside it, and the headline
-        figures below a hairline. It scopes everything under it.
-      */}
+  /**
+   * The period card, styled like the pickups calendar: the period in large
+   * type with its dates, the range control beside it, and (when they come
+   * first) the key numbers below a hairline.
+   */
+  function periodCard(kpis: Widget | null) {
+    return (
       <Card>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -126,26 +146,24 @@ export function DashboardView({
               className="w-full shrink-0 lg:w-[28rem]"
             />
           </div>
-          {hasKpis && renderWidget("kpis")}
+          {kpis && renderWidget(kpis)}
         </CardContent>
       </Card>
+    );
+  }
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {scoped.map(({ id, type }) => (
-          <div key={id} className={FULL_WIDTH.has(type) ? "lg:col-span-2" : "min-w-0"}>
-            {renderWidget(type)}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  function renderWidget(type: WidgetType) {
-    switch (type) {
-      case "upcoming":
+  function renderWidget(widget: Widget, standalone = false) {
+    switch (widget.type) {
+      case "upcoming": {
+        const days = setting<number>(widget, "days");
         return (
-          <UpcomingCalendar days={upcomingOrders([...orders, ...unpriced], today)} today={today} />
+          <UpcomingCalendar
+            days={upcomingOrders([...orders, ...unpriced], today, days)}
+            today={today}
+            windowDays={days}
+          />
         );
+      }
       case "kpis":
         return (
           <KpiRow
@@ -155,16 +173,30 @@ export function DashboardView({
               kpis: computeKpis(orders, comparison.range, first),
             }))}
             showReturning={hasCustomers}
+            standalone={standalone}
           />
         );
       case "revenueTrend":
-        return <RevenueTrendChart trend={revenueTrend(orders, period.range)} />;
-      case "topFlavours":
-        return <FlavoursChart data={(by) => topFlavours(inPeriod, by)} />;
+        return (
+          <RevenueTrendChart
+            trend={revenueTrend(orders, period.range)}
+            compare={setting<boolean>(widget, "compare")}
+          />
+        );
+      case "topFlavours": {
+        const limit = setting<number>(widget, "limit");
+        return (
+          <FlavoursChart
+            key={setting<string>(widget, "measure")}
+            initialMeasure={setting<"revenue" | "orders">(widget, "measure")}
+            data={(by) => topFlavours(inPeriod, by, limit)}
+          />
+        );
+      }
       case "busiestDays":
         return <WeekdayChart data={byWeekday(inPeriod)} />;
       case "topCustomers":
-        return <CustomersTable rows={topCustomers(inPeriod)} />;
+        return <CustomersTable rows={topCustomers(inPeriod, setting<number>(widget, "limit"))} />;
     }
   }
 }

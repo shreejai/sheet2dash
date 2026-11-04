@@ -15,7 +15,6 @@ import type { UpcomingDay, UpcomingOrder } from "@/lib/metrics";
  * Calendar events in pickup-time order.
  */
 
-const WINDOW_DAYS = 14;
 const LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
 
 const utc = (iso: string) => new Date(`${iso}T00:00:00Z`);
@@ -55,9 +54,18 @@ function daySummary(day: UpcomingDay) {
 
 const sectionId = (date: string) => `pickups-${date}`;
 
-export function UpcomingCalendar({ days, today }: { days: UpcomingDay[]; today: string }) {
+export function UpcomingCalendar({
+  days,
+  today,
+  windowDays = 14,
+}: {
+  days: UpcomingDay[];
+  today: string;
+  /** How many days ahead, from today (an option in Edit). */
+  windowDays?: number;
+}) {
   const counts = new Map(days.map((d) => [d.date, d.orders.length]));
-  const last = addDays(today, WINDOW_DAYS - 1);
+  const last = addDays(today, windowDays - 1);
   const firstWeek = startOfWeek(today);
   const weeks = Array.from({ length: Math.floor(daysBetween(firstWeek, last) / 7) + 1 }, (_, w) =>
     Array.from({ length: 7 }, (_, d) => addDays(firstWeek, w * 7 + d)),
@@ -91,8 +99,8 @@ export function UpcomingCalendar({ days, today }: { days: UpcomingDay[]; today: 
             <h2 className="title-2">{monthYear.format(utc(weeks[week][3]))}</h2>
             <p className="text-xs text-muted-foreground">
               {total
-                ? `${plural(total, "pickup")} in the next 14 days`
-                : "No pickups in the next 14 days"}
+                ? `${plural(total, "pickup")} in the next ${windowDays} days`
+                : `No pickups in the next ${windowDays} days`}
             </p>
           </div>
           <div className="flex items-center">
@@ -186,7 +194,7 @@ export function UpcomingCalendar({ days, today }: { days: UpcomingDay[]; today: 
           </ol>
         ) : (
           <p className="border-t border-separator py-6 text-center text-sm text-muted-foreground">
-            Nothing due in the next 14 days.
+            Nothing due in the next {windowDays} days.
           </p>
         )}
       </CardContent>

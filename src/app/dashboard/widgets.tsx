@@ -183,10 +183,13 @@ export function KpiRow({
   current,
   comparisons,
   showReturning,
+  standalone = false,
 }: {
   current: Kpis;
   comparisons: { comparison: Comparison; kpis: Kpis }[];
   showReturning: boolean;
+  /** In a card of its own, rather than under the period header. */
+  standalone?: boolean;
 }) {
   const tiles: {
     label: string;
@@ -225,9 +228,9 @@ export function KpiRow({
   return (
     // Bleeds to the card's edges so the hairlines run edge to edge, like grouped rows.
     <dl
-      className={`-mx-(--card-spacing) -mb-(--card-spacing) grid grid-cols-2 border-t border-separator ${
-        tiles.length === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3"
-      }`}
+      className={`-mx-(--card-spacing) grid grid-cols-2 ${
+        standalone ? "-my-(--card-spacing)" : "-mb-(--card-spacing) border-t border-separator"
+      } ${tiles.length === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}
     >
       {tiles.map((tile, i) => {
         const now = tile.pick(current);
@@ -291,13 +294,16 @@ function niceTicks(max: number, target = 4) {
  * Revenue for the period, Apple Health style: the total in large type with the
  * change in words, then a bar per week or month beside last year's.
  */
-export function RevenueTrendChart({ trend }: { trend: Trend }) {
-  const hasData = trend.points.some((p) => p.revenue || p.lastYear);
+export function RevenueTrendChart({ trend, compare = true }: { trend: Trend; compare?: boolean }) {
+  const hasData = trend.points.some((p) => p.revenue || (compare && p.lastYear));
   const total = trend.points.reduce((sum, p) => sum + p.revenue, 0);
   const before = trend.points.reduce((sum, p) => sum + p.lastYear, 0);
   const pct = change(total, before);
   const rounded = pct === null ? null : Math.round(pct * 100);
-  const ticks = niceTicks(Math.max(...trend.points.map((p) => Math.max(p.revenue, p.lastYear))));
+  const ticks = niceTicks(
+    Math.max(...trend.points.map((p) => Math.max(p.revenue, compare ? p.lastYear : 0))),
+  );
+  const average = trend.points.length ? total / trend.points.length : 0;
   // "Mar 2026" → "Mar" when the whole chart is in one year.
   const years = new Set(trend.points.map((p) => p.label.match(/\d{4}$/)?.[0]));
   const tick = (label: string) => (years.size === 1 ? label.replace(/ \d{4}$/, "") : label);
@@ -308,7 +314,9 @@ export function RevenueTrendChart({ trend }: { trend: Trend }) {
       label={`Revenue · by ${trend.bucket}`}
       value={formatAud(total)}
       detail={
-        rounded === null ? (
+        !compare ? (
+          `Average ${formatAud(Math.round(average))} a ${trend.bucket}`
+        ) : rounded === null ? (
           "Nothing to compare from last year"
         ) : rounded === 0 ? (
           "About the same as last year"
@@ -328,7 +336,9 @@ export function RevenueTrendChart({ trend }: { trend: Trend }) {
         )
       }
       action={
-        hasData && (
+        // One series needs no legend: the label names it.
+        hasData &&
+        compare && (
           <ul className="flex gap-3 text-xs text-muted-foreground" aria-label="Legend">
             {Object.values(trendConfig).map((s) => (
               <li key={s.label} className="flex items-center gap-1.5">
@@ -380,11 +390,15 @@ export function RevenueTrendChart({ trend }: { trend: Trend }) {
                           value: formatAud(Number(payload[0].payload.revenue)),
                           color: "var(--chart-1)",
                         },
-                        {
-                          label: "Last year",
-                          value: formatAud(Number(payload[0].payload.lastYear)),
-                          color: "var(--chart-2)",
-                        },
+                        ...(compare
+                          ? [
+                              {
+                                label: "Last year",
+                                value: formatAud(Number(payload[0].payload.lastYear)),
+                                color: "var(--chart-2)",
+                              },
+                            ]
+                          : []),
                       ]}
                     />
                   ) : null
@@ -397,18 +411,28 @@ export function RevenueTrendChart({ trend }: { trend: Trend }) {
                 maxBarSize={18}
                 isAnimationActive={false}
               />
-              <Bar
-                dataKey="lastYear"
-                fill="var(--color-lastYear)"
-                radius={[4, 4, 0, 0]}
-                maxBarSize={18}
-                isAnimationActive={false}
-              />
+              {compare && (
+                <Bar
+                  dataKey="lastYear"
+                  fill="var(--color-lastYear)"
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={18}
+                  isAnimationActive={false}
+                />
+              )}
             </BarChart>
           </ChartContainer>
           <TableView
-            head={[trend.bucket === "week" ? "Week starting" : "Month", "This period", "Last year"]}
-            rows={trend.points.map((p) => [p.label, formatAud(p.revenue), formatAud(p.lastYear)])}
+            head={[
+              trend.bucket === "week" ? "Week starting" : "Month",
+              "This period",
+              ...(compare ? ["Last year"] : []),
+            ]}
+            rows={trend.points.map((p) => [
+              p.label,
+              formatAud(p.revenue),
+              ...(compare ? [formatAud(p.lastYear)] : []),
+            ])}
           />
         </>
       ) : (
@@ -424,8 +448,14 @@ export function RevenueTrendChart({ trend }: { trend: Trend }) {
 const MEASURES = { revenue: "Revenue", orders: "Orders" } as const;
 type Measure = keyof typeof MEASURES;
 
-export function FlavoursChart({ data }: { data: (by: Measure) => Ranked[] }) {
-  const [by, setBy] = useState<Measure>("revenue");
+export function FlavoursChart({
+  data,
+  initialMeasure = "revenue",
+}: {
+  data: (by: Measure) => Ranked[];
+  initialMeasure?: Measure;
+}) {
+  const [by, setBy] = useState<Measure>(initialMeasure);
   const rows = data(by);
   const format = (v: number) => (by === "revenue" ? formatAud(v) : formatCount(v));
   const leader = rows.find((r) => r.name !== OTHER_FLAVOUR);

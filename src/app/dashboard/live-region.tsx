@@ -24,8 +24,11 @@ const clock = new Intl.DateTimeFormat("en-AU", {
 export function LiveRegion({
   fetchedAt,
   header,
+  actions,
   children,
 }: {
+  /** Extra header buttons (the owner's Edit). */
+  actions?: React.ReactNode;
   /** When the server last read the sheet from Google (ms since epoch). */
   fetchedAt: number;
   header: React.ReactNode;
@@ -65,6 +68,7 @@ export function LiveRegion({
           <span aria-live="polite">
             {busy ? "Checking the sheet…" : `Updated ${clock.format(fetchedAt)}`}
           </span>
+          {actions}
           <Button
             variant="secondary"
             size="sm"
