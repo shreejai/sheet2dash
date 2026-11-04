@@ -12,6 +12,9 @@ export default function Home() {
       <Button size="lg" nativeButton={false} render={<Link href="/dashboard" />}>
         Open dashboard
       </Button>
+      <Link href="/privacy" className="mt-6 text-xs text-muted-foreground hover:text-foreground">
+        Privacy
+      </Link>
     </main>
   );
 }
