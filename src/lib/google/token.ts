@@ -1,0 +1,26 @@
+import "server-only";
+import { clerkClient } from "@clerk/nextjs/server";
+
+export const DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+
+export type GoogleTokenResult =
+  | { status: "ok"; token: string }
+  /** Signed in, but not with Google (e.g. email sign-in). */
+  | { status: "no_google" }
+  /** Google is linked but the drive.file scope was never granted. */
+  | { status: "needs_scope" };
+
+/**
+ * The user's Google access token, fetched server-side from Clerk.
+ * Clerk refreshes it for us when it has expired.
+ */
+export async function getGoogleToken(userId: string): Promise<GoogleTokenResult> {
+  const client = await clerkClient();
+  const { data } = await client.users.getUserOauthAccessToken(userId, "google");
+  const account = data[0];
+  if (!account?.token) return { status: "no_google" };
+  if (account.scopes && !account.scopes.includes(DRIVE_FILE_SCOPE)) {
+    return { status: "needs_scope" };
+  }
+  return { status: "ok", token: account.token };
+}

@@ -49,7 +49,7 @@ Next.js (App Router) · TypeScript · Tailwind · shadcn/ui · Clerk · Google P
 ## Build order
 
 1. [x] Project setup, Clerk login, database schema
-2. [ ] Google connect + Picker + fetch/merge year tabs
+2. [x] Google connect + Picker + fetch/merge year tabs
 3. [ ] Column detection + confirm screen
 4. [ ] Dashboard generator + widgets, date filter, period comparisons
 5. [ ] Upcoming orders view
