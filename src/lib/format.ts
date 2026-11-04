@@ -1,8 +1,16 @@
 // en-AU display helpers: A$1,234 · 05/03/2025 · 2:30 pm
 
-const number = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 2 });
+const whole = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 });
+const cents = new Intl.NumberFormat("en-AU", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
-export const formatAud = (n: number) => `${n < 0 ? "-" : ""}A$${number.format(Math.abs(n))}`;
+/** A$1,234 for whole dollars, A$152.50 otherwise. */
+export function formatAud(n: number) {
+  const rounded = Math.round(Math.abs(n) * 100) / 100;
+  return `${n < 0 ? "-" : ""}A$${(Number.isInteger(rounded) ? whole : cents).format(rounded)}`;
+}
 
 export const formatCount = (n: number) => n.toLocaleString("en-AU");
 

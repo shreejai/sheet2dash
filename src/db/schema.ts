@@ -1,4 +1,4 @@
-import { jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { ColumnMapping } from "../lib/orders";
 
 // Every table is keyed by the Clerk user id, so a second business can be
@@ -23,3 +23,15 @@ export const dashboards = pgTable("dashboards", {
   spec: jsonb("spec").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Chat messages sent per user per day (business timezone), for the daily cap. */
+export const chatUsage = pgTable(
+  "chat_usage",
+  {
+    userId: text("user_id").notNull(),
+    /** YYYY-MM-DD */
+    day: text("day").notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.day] })],
+);
