@@ -9,13 +9,14 @@ import { todayIso } from "@/lib/dates";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { formatCount } from "@/lib/format";
-import { GoogleApiError, fetchMergedSheet, type MergedSheet } from "@/lib/google/sheets";
-import { getGoogleToken } from "@/lib/google/token";
+import { getSheet } from "@/lib/google/cached-sheet";
+import type { MergedSheet } from "@/lib/google/sheets";
 import { ROLES, ROLE_KEYS, detectColumns, isCompleteMapping, parseOrders } from "@/lib/orders";
 import { disconnectSheet } from "./actions";
 import { ColumnForm } from "./column-form";
 import { ConnectSheetButton } from "./connect-sheet-button";
 import { DashboardView } from "./dashboard-view";
+import { LiveRegion } from "./live-region";
 
 export default function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
   return (
@@ -62,37 +63,23 @@ async function SheetSection({ searchParams }: Pick<PageProps<"/dashboard">, "sea
   }
 
   const sheetLink = `https://docs.google.com/spreadsheets/d/${connection.spreadsheetId}/edit`;
-  const token = await getGoogleToken(userId);
-  let sheet: MergedSheet | null = null;
-  let problem: string | null = null;
-  if (token.status !== "ok") {
-    problem = "Google access has expired or is missing. Reconnect to continue.";
-  } else {
-    try {
-      sheet = await fetchMergedSheet(connection.spreadsheetId, token.token);
-    } catch (e) {
-      if (!(e instanceof GoogleApiError)) throw e;
-      problem =
-        e.status === 403 || e.status === 404
-          ? "This app can't open the sheet any more. Pick it again to restore access."
-          : `Google Sheets returned an error: ${e.message}`;
-    }
-  }
+  const result = await getSheet(userId, connection.spreadsheetId);
 
-  if (!sheet) {
+  if (!result.ok) {
     return (
       <Card>
         <CardHeader>
           <SheetTitle href={sheetLink} title={connection.spreadsheetName} />
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <p className="text-sm text-destructive">{problem}</p>
+          <p className="text-sm text-destructive">{result.problem}</p>
           <SheetActions reconnect />
         </CardContent>
       </Card>
     );
   }
 
+  const { sheet, fetchedAt } = result;
   const { columns } = await searchParams;
   const saved = connection.columnMapping;
   const confirmed = saved && isCompleteMapping(saved, sheet.headers);
@@ -137,25 +124,30 @@ async function SheetSection({ searchParams }: Pick<PageProps<"/dashboard">, "sea
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-0.5">
-        <h1 className="text-xl font-semibold tracking-tight">
-          <a
-            href={sheetLink}
-            target="_blank"
-            rel="noreferrer"
-            className="underline-offset-4 hover:underline"
-          >
-            {sheet.title}
-          </a>
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {formatCount(orders.length)} orders
-          {skippedTotal > 0 &&
-            ` · ${formatCount(skippedTotal)} rows skipped (no due date or amount)`}
-        </p>
-      </div>
-
-      <DashboardView orders={orders} unpriced={unpriced} today={todayIso()} spec={spec} />
+      <LiveRegion
+        fetchedAt={fetchedAt}
+        header={
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <h1 className="text-xl font-semibold tracking-tight">
+              <a
+                href={sheetLink}
+                target="_blank"
+                rel="noreferrer"
+                className="underline-offset-4 hover:underline"
+              >
+                {sheet.title}
+              </a>
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {formatCount(orders.length)} orders
+              {skippedTotal > 0 &&
+                ` · ${formatCount(skippedTotal)} rows not counted (no due date or price)`}
+            </p>
+          </div>
+        }
+      >
+        <DashboardView orders={orders} unpriced={unpriced} today={todayIso()} spec={spec} />
+      </LiveRegion>
 
       <Card size="sm">
         <CardHeader>

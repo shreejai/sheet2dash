@@ -77,7 +77,7 @@ export function DashboardView({
               role="radio"
               aria-checked={preset === id}
               onClick={() => setPreset(id)}
-              className={`rounded-full px-3 py-1 text-sm ring-1 transition-colors ${
+              className={`rounded-full px-3 py-1.5 text-sm ring-1 transition-colors sm:py-1 ${
                 preset === id
                   ? "bg-foreground text-background ring-foreground"
                   : "text-muted-foreground ring-foreground/15 hover:text-foreground"
@@ -98,7 +98,7 @@ export function DashboardView({
                 onChange={(e) =>
                   e.target.value && setCustom((c) => ({ ...c, from: e.target.value }))
                 }
-                className="rounded-md border bg-background px-2 py-1 text-foreground"
+                className="rounded-md border bg-background px-2 py-1 text-base text-foreground sm:text-sm"
               />
               <span>to</span>
               <input
@@ -107,7 +107,7 @@ export function DashboardView({
                 value={custom.to}
                 min={custom.from}
                 onChange={(e) => e.target.value && setCustom((c) => ({ ...c, to: e.target.value }))}
-                className="rounded-md border bg-background px-2 py-1 text-foreground"
+                className="rounded-md border bg-background px-2 py-1 text-base text-foreground sm:text-sm"
               />
             </>
           ) : (

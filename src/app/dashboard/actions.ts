@@ -2,12 +2,13 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
-import { refresh } from "next/cache";
+import { refresh, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { dashboards, sheetConnections } from "@/db/schema";
 import { generateSpec } from "@/lib/dashboard-spec";
-import { GoogleApiError, fetchMergedSheet, getSpreadsheetMeta } from "@/lib/google/sheets";
+import { getSheet, sheetTag } from "@/lib/google/cached-sheet";
+import { GoogleApiError, getSpreadsheetMeta } from "@/lib/google/sheets";
 import { ROLE_KEYS, isCompleteMapping, type ColumnMapping } from "@/lib/orders";
 import { getGoogleToken, type GoogleTokenResult } from "@/lib/google/token";
 
@@ -71,8 +72,13 @@ export async function connectSheet(
       },
     });
 
-  refresh();
+  updateTag(sheetTag(userId));
   return { ok: true };
+}
+
+/** "Refresh" button: drop the cached copy so the page re-reads the sheet now. */
+export async function refreshSheet() {
+  updateTag(sheetTag(await requireUserId()));
 }
 
 export async function saveColumnMapping(
@@ -86,10 +92,10 @@ export async function saveColumnMapping(
     .where(eq(sheetConnections.userId, userId));
   if (!connection) return { ok: false, error: "Connect a sheet first." };
 
-  const token = await getGoogleToken(userId);
-  if (token.status !== "ok") return { ok: false, error: "Google access is missing. Reconnect." };
   // Check the chosen columns against the sheet's real headers, not the browser's copy.
-  const { headers } = await fetchMergedSheet(connection.spreadsheetId, token.token);
+  const result = await getSheet(userId, connection.spreadsheetId);
+  if (!result.ok) return { ok: false, error: result.problem };
+  const { headers } = result.sheet;
 
   const mapping: ColumnMapping = {};
   for (const role of ROLE_KEYS) {

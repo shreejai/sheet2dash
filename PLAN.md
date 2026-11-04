@@ -53,7 +53,7 @@ Next.js (App Router) · TypeScript · Tailwind · shadcn/ui · Clerk · Google P
 3. [x] Column detection + confirm screen
 4. [x] Dashboard generator + widgets, date filter, period comparisons
 5. [x] Upcoming orders view
-6. [ ] Polling refresh + mobile polish
+6. [x] Polling refresh + mobile polish
 7. [ ] Chat
 8. [ ] Widget editing (add/remove/change)
 9. [ ] Demo mode with sample data

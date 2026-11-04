@@ -1,7 +1,11 @@
 import "server-only";
-import { clerkClient } from "@clerk/nextjs/server";
+import { createClerkClient } from "@clerk/nextjs/server";
 
 export const DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+
+// Built from the secret key alone (not request headers), so it also works
+// inside cached functions.
+const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
 
 export type GoogleTokenResult =
   | { status: "ok"; token: string }
@@ -15,8 +19,7 @@ export type GoogleTokenResult =
  * Clerk refreshes it for us when it has expired.
  */
 export async function getGoogleToken(userId: string): Promise<GoogleTokenResult> {
-  const client = await clerkClient();
-  const { data } = await client.users.getUserOauthAccessToken(userId, "google");
+  const { data } = await clerk.users.getUserOauthAccessToken(userId, "google");
   const account = data[0];
   if (!account?.token) return { status: "no_google" };
   if (account.scopes && !account.scopes.includes(DRIVE_FILE_SCOPE)) {

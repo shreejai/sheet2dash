@@ -60,7 +60,7 @@ export function ColumnForm({
                 id={id}
                 value={mapping[role] ?? ""}
                 onChange={(e) => setMapping((m) => ({ ...m, [role]: e.target.value || undefined }))}
-                className="h-9 rounded-lg border border-input bg-background px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="h-10 rounded-lg border border-input bg-background px-2 text-base outline-none sm:h-9 sm:text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
               >
                 <option value="">{required ? "Choose a column…" : "Not in my sheet"}</option>
                 {headers.map((h) => (

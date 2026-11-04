@@ -532,7 +532,7 @@ export function CustomersTable({ rows }: { rows: CustomerRow[] }) {
                 <th className="py-2 pr-3 font-medium">Customer</th>
                 <th className="px-3 py-2 text-right font-medium">Orders</th>
                 <th className="px-3 py-2 text-right font-medium">Revenue</th>
-                <th className="py-2 pl-3 text-right font-medium">Last order</th>
+                <th className="hidden py-2 pl-3 text-right font-medium sm:table-cell">Last order</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -541,7 +541,7 @@ export function CustomersTable({ rows }: { rows: CustomerRow[] }) {
                   <td className="py-2 pr-3">{c.name}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatCount(c.orders)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{formatAud(c.revenue)}</td>
-                  <td className="py-2 pl-3 text-right whitespace-nowrap tabular-nums">
+                  <td className="hidden py-2 pl-3 text-right whitespace-nowrap tabular-nums sm:table-cell">
                     {formatDate(c.lastOrder)}
                   </td>
                 </tr>
