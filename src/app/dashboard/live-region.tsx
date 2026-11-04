@@ -59,26 +59,29 @@ export function LiveRegion({
 
   return (
     <>
-      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 px-1">
         {header}
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <span aria-live="polite">
             {busy ? "Checking the sheet…" : `Updated ${clock.format(fetchedAt)}`}
           </span>
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={() => startRefresh(() => refreshSheet())}
             disabled={refreshing}
             aria-label="Refresh from Google Sheets"
           >
-            <RefreshCw className={refreshing ? "animate-spin" : undefined} aria-hidden />
+            <RefreshCw
+              className={refreshing ? "motion-safe:animate-spin" : undefined}
+              aria-hidden
+            />
             Refresh
           </Button>
         </div>
       </div>
       <div
-        className={`flex flex-col gap-6 transition-opacity ${refreshing ? "opacity-60" : ""}`}
+        className={`flex flex-col gap-4 transition-opacity duration-200 ${refreshing ? "opacity-60" : ""}`}
         aria-busy={busy}
       >
         {children}

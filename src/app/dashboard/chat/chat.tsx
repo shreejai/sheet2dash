@@ -60,23 +60,24 @@ export function Chat({ dailyLimit }: { dailyLimit: number }) {
       : "Something went wrong. Please try again.";
 
   return (
-    <div className="flex min-h-[calc(100dvh-9rem)] flex-col gap-4">
+    <div className="flex min-h-[calc(100dvh-var(--tabbar)-6rem)] flex-col gap-4">
       <div className="flex flex-1 flex-col gap-5" aria-live="polite">
         {messages.length === 0 && (
           <div className="flex flex-col gap-4 py-6">
             <div className="flex flex-col gap-1">
-              <h1 className="text-xl font-semibold tracking-tight">Ask about your orders</h1>
+              <h1 className="large-title">Ask</h1>
               <p className="text-sm text-muted-foreground">
-                Answers are worked out from your sheet, so the numbers match the dashboard.
+                Ask anything about your orders. Answers are worked out from your sheet, so the
+                numbers match the dashboard.
               </p>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            <div className="flex flex-col gap-2 sm:grid sm:grid-cols-2">
               {SUGGESTIONS.map((s) => (
                 <button
                   key={s}
                   type="button"
                   onClick={() => send(s)}
-                  className="rounded-xl px-3 py-2 text-left text-sm ring-1 ring-foreground/10 transition-colors hover:bg-muted"
+                  className="pressable min-h-11 rounded-2xl bg-card px-4 py-3 text-left text-sm hover:bg-[color-mix(in_srgb,var(--card),var(--foreground)_4%)] contrast-more:ring-1 contrast-more:ring-border"
                 >
                   {s}
                 </button>
@@ -88,16 +89,19 @@ export function Chat({ dailyLimit }: { dailyLimit: number }) {
         {messages.map((m) =>
           m.role === "user" ? (
             <div key={m.id} className="flex justify-end">
-              <p className="max-w-[85%] rounded-2xl rounded-br-md bg-muted px-3.5 py-2 text-sm whitespace-pre-wrap">
+              <p className="max-w-[85%] rounded-[1.25rem] rounded-br-md bg-[#0071e3] px-3.5 py-2 text-base whitespace-pre-wrap text-white sm:text-sm">
                 {m.parts.map((p) => (p.type === "text" ? p.text : "")).join("")}
               </p>
             </div>
           ) : (
-            <div key={m.id} className="flex flex-col gap-2">
+            <div key={m.id} className="flex max-w-[92%] flex-col items-start gap-2">
               {m.parts.map((part, i) => {
                 if (part.type === "text") {
                   return (
-                    <p key={i} className="text-sm leading-relaxed whitespace-pre-wrap">
+                    <p
+                      key={i}
+                      className="rounded-[1.25rem] rounded-bl-md bg-card px-4 py-2.5 text-base leading-relaxed whitespace-pre-wrap sm:text-sm"
+                    >
                       <RichText text={part.text} />
                     </p>
                   );
@@ -107,7 +111,7 @@ export function Chat({ dailyLimit }: { dailyLimit: number }) {
                 return (
                   <span
                     key={i}
-                    className="flex w-fit items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground"
+                    className="flex w-fit items-center gap-1.5 rounded-full bg-fill px-2.5 py-0.5 text-xs text-muted-foreground"
                   >
                     <tool.Icon className="size-3.5" aria-hidden />
                     {tool.label}
@@ -119,11 +123,13 @@ export function Chat({ dailyLimit }: { dailyLimit: number }) {
         )}
 
         {status === "submitted" && (
-          <p className="animate-pulse text-sm text-muted-foreground">Looking at your sheet…</p>
+          <p className="text-sm text-muted-foreground motion-safe:animate-pulse">
+            Looking at your sheet…
+          </p>
         )}
 
         {error && (
-          <div className="flex flex-wrap items-center gap-2 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-card px-4 py-2 text-sm text-destructive">
             <span>{errorText}</span>
             <Button size="sm" variant="ghost" onClick={() => regenerate()}>
               Try again
@@ -138,9 +144,9 @@ export function Chat({ dailyLimit }: { dailyLimit: number }) {
           e.preventDefault();
           send(input);
         }}
-        className="sticky bottom-0 flex flex-col gap-1.5 bg-background pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
+        className="sticky bottom-(--tabbar) -mx-4 -mb-[calc(var(--tabbar)+1.5rem)] flex flex-col gap-1.5 bg-background/85 px-4 pt-2 pb-3 backdrop-blur-xl sm:pb-4"
       >
-        <div className="flex items-end gap-2 rounded-2xl px-3 py-2 ring-1 ring-foreground/15 focus-within:ring-2 focus-within:ring-ring/50">
+        <div className="flex items-end gap-2 rounded-[1.375rem] bg-card py-1.5 pr-1.5 pl-4 ring-1 ring-separator focus-within:ring-2 focus-within:ring-ring/50">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -154,13 +160,13 @@ export function Chat({ dailyLimit }: { dailyLimit: number }) {
             maxLength={MAX_CHARS}
             placeholder="Ask about revenue, flavours, customers…"
             aria-label="Your question"
-            className="field-sizing-content max-h-40 min-h-6 flex-1 resize-none bg-transparent text-base outline-none placeholder:text-muted-foreground sm:text-sm"
+            className="field-sizing-content max-h-40 min-h-6 flex-1 resize-none self-center bg-transparent py-1 text-base outline-none placeholder:text-muted-foreground sm:text-sm"
           />
           {busy ? (
             <Button
               type="button"
               size="icon-sm"
-              variant="outline"
+              variant="secondary"
               onClick={() => stop()}
               aria-label="Stop"
             >

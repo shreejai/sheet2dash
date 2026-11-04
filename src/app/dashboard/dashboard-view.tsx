@@ -17,18 +17,26 @@ import {
   type PresetId,
 } from "@/lib/metrics";
 import type { Order, UnpricedOrder } from "@/lib/orders";
-import {
-  CustomersTable,
-  FlavoursChart,
-  KpiRow,
-  RevenueTrendChart,
-  UpcomingOrders,
-  WeekdayChart,
-} from "./widgets";
+import { SegmentedControl } from "@/components/segmented-control";
+import { Card, CardContent } from "@/components/ui/card";
+import { UpcomingCalendar } from "./upcoming-calendar";
+import { CustomersTable, FlavoursChart, KpiRow, RevenueTrendChart, WeekdayChart } from "./widgets";
 
 const FULL_WIDTH = new Set<WidgetType>(["kpis", "revenueTrend"]);
 /** Widgets about what's coming up, not the selected period: shown above the date filter. */
 const UNSCOPED = new Set<WidgetType>(["upcoming"]);
+
+/** Short segment labels so all five fit on a phone (HIG: at most about five on iPhone). */
+const SEGMENTS: Record<PresetId, string> = {
+  month: "Month",
+  "30d": "30 Days",
+  year: "Year",
+  lastYear: "Last Year",
+  custom: "Custom",
+};
+
+const DATE_INPUT =
+  "h-9 rounded-lg bg-fill px-2.5 text-base text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring/60 pointer-coarse:h-11 sm:text-sm";
 
 export function DashboardView({
   orders,
@@ -57,7 +65,9 @@ export function DashboardView({
   const sameYear = period.range.from.slice(0, 4) === period.range.to.slice(0, 4);
   const rangeLabel = `${shortDate(period.range.from, !sameYear)} – ${shortDate(period.range.to, true)}`;
 
-  const scoped = spec.widgets.filter((w) => !UNSCOPED.has(w.type));
+  // KPIs live inside the period card; the rest go in the grid below it.
+  const hasKpis = spec.widgets.some((w) => w.type === "kpis");
+  const scoped = spec.widgets.filter((w) => !UNSCOPED.has(w.type) && w.type !== "kpis");
 
   return (
     <div className="flex flex-col gap-4">
@@ -67,54 +77,58 @@ export function DashboardView({
           <div key={id}>{renderWidget(type)}</div>
         ))}
 
-      {/* One filter row above everything it scopes. */}
-      <div className="flex flex-col gap-2">
-        <div role="radiogroup" aria-label="Date range" className="flex flex-wrap gap-1.5">
-          {(Object.keys(PRESETS) as PresetId[]).map((id) => (
-            <button
-              key={id}
-              type="button"
-              role="radio"
-              aria-checked={preset === id}
-              onClick={() => setPreset(id)}
-              className={`rounded-full px-3 py-1.5 text-sm ring-1 transition-colors sm:py-1 ${
-                preset === id
-                  ? "bg-foreground text-background ring-foreground"
-                  : "text-muted-foreground ring-foreground/15 hover:text-foreground"
-              }`}
-            >
-              {PRESETS[id]}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          {preset === "custom" ? (
-            <>
-              <input
-                type="date"
-                aria-label="From"
-                value={custom.from}
-                max={custom.to}
-                onChange={(e) =>
-                  e.target.value && setCustom((c) => ({ ...c, from: e.target.value }))
-                }
-                className="rounded-md border bg-background px-2 py-1 text-base text-foreground sm:text-sm"
-              />
-              <span>to</span>
-              <input
-                type="date"
-                aria-label="To"
-                value={custom.to}
-                min={custom.from}
-                onChange={(e) => e.target.value && setCustom((c) => ({ ...c, to: e.target.value }))}
-                className="rounded-md border bg-background px-2 py-1 text-base text-foreground sm:text-sm"
-              />
-            </>
-          ) : (
-            <span>{rangeLabel}</span>
-          )}
-        </div>
-      </div>
+      {/*
+        The period card, styled like the pickups calendar: the period in large
+        type with its dates, the range control beside it, and the headline
+        figures below a hairline. It scopes everything under it.
+      */}
+      <Card>
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <h2 className="title-2">{preset === "custom" ? "Custom range" : PRESETS[preset]}</h2>
+              {preset === "custom" ? (
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="date"
+                    aria-label="From"
+                    value={custom.from}
+                    max={custom.to}
+                    onChange={(e) =>
+                      e.target.value && setCustom((c) => ({ ...c, from: e.target.value }))
+                    }
+                    className={DATE_INPUT}
+                  />
+                  <span>to</span>
+                  <input
+                    type="date"
+                    aria-label="To"
+                    value={custom.to}
+                    min={custom.from}
+                    onChange={(e) =>
+                      e.target.value && setCustom((c) => ({ ...c, to: e.target.value }))
+                    }
+                    className={DATE_INPUT}
+                  />
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground tabular-nums">{rangeLabel}</p>
+              )}
+            </div>
+            <SegmentedControl
+              label="Date range"
+              value={preset}
+              onChange={setPreset}
+              options={(Object.keys(SEGMENTS) as PresetId[]).map((id) => ({
+                value: id,
+                label: SEGMENTS[id],
+              }))}
+              className="w-full shrink-0 lg:w-[28rem]"
+            />
+          </div>
+          {hasKpis && renderWidget("kpis")}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         {scoped.map(({ id, type }) => (
@@ -130,7 +144,7 @@ export function DashboardView({
     switch (type) {
       case "upcoming":
         return (
-          <UpcomingOrders days={upcomingOrders([...orders, ...unpriced], today)} today={today} />
+          <UpcomingCalendar days={upcomingOrders([...orders, ...unpriced], today)} today={today} />
         );
       case "kpis":
         return (

@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { THEME_SCRIPT } from "@/lib/theme";
 import "./globals.css";
@@ -15,23 +14,15 @@ const clerkAppearance = {
     colorMuted: "var(--muted)",
     colorMutedForeground: "var(--muted-foreground)",
     colorNeutral: "var(--foreground)",
-    colorInput: "var(--background)",
+    colorInput: "var(--card)",
     colorInputForeground: "var(--foreground)",
     colorBorder: "var(--border)",
     colorRing: "var(--ring)",
     colorDanger: "var(--destructive)",
+    fontFamily: "var(--font-sans)",
+    borderRadius: "0.75rem",
   },
 };
-
-const geistSans = Geist({
-  variable: "--font-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "Sheet2Dash",
@@ -41,21 +32,23 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  // Draw under the home indicator; the tab bar pads itself with the safe area.
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f2f2f7" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+  ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <ClerkProvider appearance={clerkAppearance}>
       {/* The theme script toggles `.dark` on <html> before React hydrates. */}
-      <html
-        lang="en-AU"
-        className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-        suppressHydrationWarning
-      >
+      <html lang="en-AU" className="h-full antialiased" suppressHydrationWarning>
         <head>
           <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         </head>
-        <body className="min-h-full flex flex-col">{children}</body>
+        <body className="flex min-h-full flex-col">{children}</body>
       </html>
     </ClerkProvider>
   );

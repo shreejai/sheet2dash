@@ -108,24 +108,26 @@ async function SheetSection({ searchParams }: Pick<PageProps<"/dashboard">, "sea
 
   if (!confirmed || (isOwner && columns === "edit")) {
     return (
-      <Card>
-        <CardHeader>
-          <SheetTitle href={sheetLink} title={sheet.title} />
-          <CardDescription>
-            Check which column holds what. The guesses come from your column names; change any that
-            are wrong.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-6">
-          <ColumnForm
-            headers={sheet.headers}
-            rows={sheet.rows}
-            initial={confirmed ? saved : detectColumns(sheet.headers)}
-            editing={Boolean(confirmed)}
-          />
-          <SheetDetails sheet={sheet} />
-        </CardContent>
-      </Card>
+      <div className="flex flex-col gap-4">
+        <Card>
+          <CardHeader>
+            <SheetTitle href={sheetLink} title={sheet.title} />
+            <CardDescription>
+              Check which column holds what. The guesses come from your column names; change any
+              that are wrong.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-6">
+            <ColumnForm
+              headers={sheet.headers}
+              rows={sheet.rows}
+              initial={confirmed ? saved : detectColumns(sheet.headers)}
+              editing={Boolean(confirmed)}
+            />
+          </CardContent>
+        </Card>
+        <SheetDetails sheet={sheet} />
+      </div>
     );
   }
 
@@ -160,7 +162,7 @@ async function SheetSection({ searchParams }: Pick<PageProps<"/dashboard">, "sea
         fetchedAt={fetchedAt}
         header={
           <div className="flex min-w-0 flex-col gap-0.5">
-            <h1 className="text-xl font-semibold tracking-tight">
+            <h1 className="title-2">
               <a
                 href={sheetLink}
                 target="_blank"
@@ -170,7 +172,7 @@ async function SheetSection({ searchParams }: Pick<PageProps<"/dashboard">, "sea
                 {sheet.title}
               </a>
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {formatCount(orders.length)} orders
               {skippedTotal > 0 &&
                 ` · ${formatCount(skippedTotal)} rows not counted (no due date or price)`}
@@ -186,38 +188,41 @@ async function SheetSection({ searchParams }: Pick<PageProps<"/dashboard">, "sea
         <DashboardView orders={orders} unpriced={unpriced} today={todayIso()} spec={spec} />
       </LiveRegion>
 
+      {/* Settings as grouped sections, like iOS Settings: a heading, a card, a footnote. */}
       {isOwner && (
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle>Sheet settings</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <section className="flex flex-col gap-2">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="text-sm font-medium">Columns</h2>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  nativeButton={false}
-                  render={<Link href="/dashboard?columns=edit" />}
-                >
-                  Edit columns
-                </Button>
-              </div>
-              <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
+        <section aria-labelledby="settings-heading" className="flex flex-col gap-3 pt-4">
+          <h2 id="settings-heading" className="title-2 px-1">
+            Settings
+          </h2>
+          <Card size="sm">
+            <CardHeader className="flex items-center justify-between gap-2">
+              <CardTitle>Columns</CardTitle>
+              <Button
+                size="sm"
+                variant="ghost"
+                nativeButton={false}
+                render={<Link href="/dashboard?columns=edit" />}
+              >
+                Edit
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <dl className="divide-y divide-separator text-sm">
                 {ROLE_KEYS.map((role) => (
-                  <div key={role} className="contents">
-                    <dt className="text-muted-foreground">{ROLES[role].label}</dt>
-                    <dd>{saved![role] ?? "—"}</dd>
+                  <div key={role} className="flex items-baseline justify-between gap-4 py-2.5">
+                    <dt>{ROLES[role].label}</dt>
+                    <dd className="min-w-0 truncate text-right text-muted-foreground">
+                      {saved![role] ?? "Not used"}
+                    </dd>
                   </div>
                 ))}
               </dl>
-            </section>
-            <Sharing viewers={viewers} />
-            <SheetDetails sheet={sheet} />
-            <SheetActions />
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+          <Sharing viewers={viewers} />
+          <SheetDetails sheet={sheet} />
+          <SheetActions />
+        </section>
       )}
     </div>
   );
@@ -241,24 +246,31 @@ function SheetTitle({ href, title }: { href: string; title: string }) {
 function SheetDetails({ sheet }: { sheet: MergedSheet }) {
   const included = sheet.tabs.filter((t) => t.included).length;
   return (
-    <details className="group text-sm">
-      <summary className="cursor-pointer text-muted-foreground select-none">
-        Sheet details · {included} of {sheet.tabs.length} tabs used
-      </summary>
-      <ul className="mt-2 divide-y rounded-lg border">
-        {sheet.tabs.map((tab) => (
-          <li key={tab.title} className="flex items-center justify-between gap-4 px-3 py-2">
-            <span className={tab.included ? "" : "text-muted-foreground line-through"}>
-              {tab.title}
+    <Card size="sm">
+      <CardContent>
+        <details className="group text-sm">
+          <summary className="flex cursor-pointer items-center justify-between gap-2 py-1 select-none pointer-coarse:py-2.5">
+            <span className="headline">Sheet tabs</span>
+            <span className="text-muted-foreground">
+              {included} of {sheet.tabs.length} used
             </span>
-            <span className="text-right text-muted-foreground">
-              {formatCount(tab.rowCount)} rows
-              {tab.note && <span className="block text-xs">{tab.note}</span>}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </details>
+          </summary>
+          <ul className="mt-1 divide-y divide-separator">
+            {sheet.tabs.map((tab) => (
+              <li key={tab.title} className="flex items-baseline justify-between gap-4 py-2.5">
+                <span className={tab.included ? "" : "text-muted-foreground line-through"}>
+                  {tab.title}
+                </span>
+                <span className="text-right text-muted-foreground tabular-nums">
+                  {formatCount(tab.rowCount)} rows
+                  {tab.note && <span className="block text-xs">{tab.note}</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -269,7 +281,7 @@ function SheetActions({ reconnect = false }: { reconnect?: boolean }) {
         {reconnect ? "Reconnect sheet" : "Change sheet"}
       </ConnectSheetButton>
       <form action={disconnectSheet}>
-        <Button type="submit" variant="ghost">
+        <Button type="submit" variant="destructive">
           Disconnect
         </Button>
       </form>

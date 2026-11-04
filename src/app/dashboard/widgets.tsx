@@ -2,32 +2,14 @@
 
 import { useState } from "react";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
-import {
-  Area,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ComposedChart,
-  LabelList,
-  Line,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, XAxis, YAxis } from "recharts";
+import { Card, CardContent } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart";
-import { daysBetween, shortDate, weekdayIndex, WEEKDAYS } from "@/lib/dates";
-import { formatAud, formatCount, formatDate, formatTime } from "@/lib/format";
+import { SegmentedControl } from "@/components/segmented-control";
+import { WEEKDAYS } from "@/lib/dates";
+import { formatAud, formatCount, formatDate } from "@/lib/format";
 import { OTHER_FLAVOUR } from "@/lib/flavours";
-import type {
-  Comparison,
-  CustomerRow,
-  Kpis,
-  Ranked,
-  Trend,
-  UpcomingDay,
-  WeekdayCount,
-} from "@/lib/metrics";
+import type { Comparison, CustomerRow, Kpis, Ranked, Trend, WeekdayCount } from "@/lib/metrics";
 import { change } from "@/lib/metrics";
 
 // ---------------------------------------------------------------------------
@@ -37,30 +19,50 @@ import { change } from "@/lib/metrics";
 const compactAud = (v: number) =>
   v >= 1000 ? `A$${Number((v / 1000).toFixed(1))}K` : `A$${Math.round(v)}`;
 
+/**
+ * Every widget's card, Apple Health style: a small label naming the widget,
+ * its main message as a large headline, and a line of detail beneath. The
+ * headline means nobody has to read the answer off the chart (HIG › Charts).
+ */
 export function WidgetCard({
-  title,
-  description,
+  label,
+  value,
+  detail,
   action,
+  footnote,
   children,
 }: {
-  title: string;
-  description?: string;
+  label: string;
+  value?: React.ReactNode;
+  detail?: React.ReactNode;
   action?: React.ReactNode;
+  /** How the numbers were worked out, under the content. */
+  footnote?: string;
   children: React.ReactNode;
 }) {
   return (
-    <Card>
-      <CardHeader className="flex flex-wrap items-start justify-between gap-2">
-        <div className="grid gap-1">
-          <CardTitle>{title}</CardTitle>
-          {description && <CardDescription>{description}</CardDescription>}
+    <Card className="h-full">
+      <CardContent className="flex flex-1 flex-col gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+          <div className="min-w-0">
+            <h2 className="text-xs font-semibold text-muted-foreground">{label}</h2>
+            {value && <p className="title-1 truncate tabular-nums">{value}</p>}
+            {detail && (
+              <div className="flex flex-wrap items-center gap-x-1 text-xs text-muted-foreground">
+                {detail}
+              </div>
+            )}
+          </div>
+          {action}
         </div>
-        {action}
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">{children}</CardContent>
+        {children}
+        {footnote && <p className="mt-auto text-caption text-muted-foreground">{footnote}</p>}
+      </CardContent>
     </Card>
   );
 }
+
+const plural = (n: number, word: string) => `${formatCount(n)} ${word}${n === 1 ? "" : "s"}`;
 
 function Empty() {
   return (
@@ -72,12 +74,12 @@ function Empty() {
 function TableView({ head, rows }: { head: string[]; rows: (string | number)[][] }) {
   return (
     <details className="text-sm">
-      <summary className="cursor-pointer text-xs text-muted-foreground select-none">
+      <summary className="w-fit cursor-pointer py-1 text-xs font-medium text-tint select-none pointer-coarse:py-3">
         Show as table
       </summary>
-      <div className="mt-2 max-h-72 overflow-auto rounded-lg border">
+      <div className="mt-1 max-h-72 overflow-auto rounded-xl bg-background/60">
         <table className="w-full text-left">
-          <thead className="sticky top-0 bg-muted text-xs text-muted-foreground">
+          <thead className="sticky top-0 bg-card text-xs text-muted-foreground shadow-[0_0.5px_0_var(--separator)]">
             <tr>
               {head.map((h, i) => (
                 <th key={h} className={`px-3 py-1.5 font-medium ${i ? "text-right" : ""}`}>
@@ -86,7 +88,7 @@ function TableView({ head, rows }: { head: string[]; rows: (string | number)[][]
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className="divide-y divide-separator">
             {rows.map((row, r) => (
               <tr key={r}>
                 {row.map((cell, i) => (
@@ -112,11 +114,11 @@ function Tip({
   rows: { label: string; value: string; color?: string }[];
 }) {
   return (
-    <div className="grid min-w-36 gap-1 rounded-lg border bg-background px-2.5 py-1.5 text-xs shadow-lg">
+    <div className="grid min-w-36 gap-1 rounded-xl bg-popover px-3 py-2 text-xs shadow-[0_8px_24px_rgb(0_0_0/0.14),0_0_0_0.5px_var(--separator)]">
       <div className="text-muted-foreground">{title}</div>
       {rows.map((r) => (
         <div key={r.label} className="flex items-center gap-2">
-          {r.color && <span className="h-0.5 w-3 rounded-full" style={{ background: r.color }} />}
+          {r.color && <span className="size-2.5 rounded-[3px]" style={{ background: r.color }} />}
           <span className="font-semibold text-foreground tabular-nums">{r.value}</span>
           <span className="text-muted-foreground">{r.label}</span>
         </div>
@@ -137,24 +139,13 @@ function Toggle<T extends string>({
   label: string;
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="flex rounded-lg border p-0.5 text-xs">
-      {(Object.keys(options) as T[]).map((key) => (
-        <button
-          key={key}
-          type="button"
-          role="radio"
-          aria-checked={value === key}
-          onClick={() => onChange(key)}
-          className={`rounded-md px-2 py-1 transition-colors ${
-            value === key
-              ? "bg-muted font-medium text-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          {options[key]}
-        </button>
-      ))}
-    </div>
+    <SegmentedControl
+      label={label}
+      value={value}
+      onChange={onChange}
+      options={(Object.keys(options) as T[]).map((key) => ({ value: key, label: options[key] }))}
+      className="w-44"
+    />
   );
 }
 
@@ -174,7 +165,7 @@ function Delta({ value, label, unit }: { value: number | null; label: string; un
   const up = value > 0;
   const Icon = up ? ArrowUpRight : ArrowDownRight;
   return (
-    <li className="flex items-center gap-1 text-xs">
+    <li className="flex flex-wrap items-center gap-x-1 text-xs">
       <span
         className={`flex items-center gap-0.5 font-medium ${
           flat ? "text-muted-foreground" : up ? "text-chart-good" : "text-chart-bad"
@@ -232,18 +223,24 @@ export function KpiRow({
   }
 
   return (
+    // Bleeds to the card's edges so the hairlines run edge to edge, like grouped rows.
     <dl
-      className={`grid grid-cols-2 gap-3 ${tiles.length === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}
+      className={`-mx-(--card-spacing) -mb-(--card-spacing) grid grid-cols-2 border-t border-separator ${
+        tiles.length === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3"
+      }`}
     >
-      {tiles.map((tile) => {
+      {tiles.map((tile, i) => {
         const now = tile.pick(current);
         return (
           <div
             key={tile.label}
-            className="flex flex-col gap-1 rounded-xl px-4 py-3 ring-1 ring-foreground/10"
+            className={`flex min-w-0 flex-col gap-1 border-separator px-4 py-3.5 ${
+              // Hairlines between figures: a 2×2 grid on phones, one row on wide screens.
+              i % 2 === 1 ? "border-l" : i > 0 ? "lg:border-l" : ""
+            } ${i >= 2 ? "border-t lg:border-t-0" : ""}`}
           >
-            <dt className="text-sm text-muted-foreground">{tile.label}</dt>
-            <dd className="text-2xl font-semibold tracking-tight">{tile.value}</dd>
+            <dt className="text-xs font-semibold text-muted-foreground">{tile.label}</dt>
+            <dd className="title-1 truncate tabular-nums">{tile.value}</dd>
             <dd>
               <ul className="flex flex-col gap-0.5">
                 {comparisons.map(({ comparison, kpis }) => {
@@ -280,42 +277,99 @@ const trendConfig = {
   lastYear: { label: "Last year", color: "var(--chart-2)" },
 } satisfies ChartConfig;
 
+/** Round axis steps people read at a glance (HIG › Charts): 1, 2, 2.5 or 5 × 10ⁿ. */
+function niceTicks(max: number, target = 4) {
+  if (max <= 0) return [0];
+  const raw = max / target;
+  const power = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * power).find((s) => s >= raw)!;
+  const top = Math.ceil(max / step) * step;
+  return Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step);
+}
+
+/**
+ * Revenue for the period, Apple Health style: the total in large type with the
+ * change in words, then a bar per week or month beside last year's.
+ */
 export function RevenueTrendChart({ trend }: { trend: Trend }) {
   const hasData = trend.points.some((p) => p.revenue || p.lastYear);
+  const total = trend.points.reduce((sum, p) => sum + p.revenue, 0);
+  const before = trend.points.reduce((sum, p) => sum + p.lastYear, 0);
+  const pct = change(total, before);
+  const rounded = pct === null ? null : Math.round(pct * 100);
+  const ticks = niceTicks(Math.max(...trend.points.map((p) => Math.max(p.revenue, p.lastYear))));
+  // "Mar 2026" → "Mar" when the whole chart is in one year.
+  const years = new Set(trend.points.map((p) => p.label.match(/\d{4}$/)?.[0]));
+  const tick = (label: string) => (years.size === 1 ? label.replace(/ \d{4}$/, "") : label);
+  const Icon = rounded !== null && rounded < 0 ? ArrowDownRight : ArrowUpRight;
+
   return (
     <WidgetCard
-      title="Revenue"
-      description={`By ${trend.bucket}, compared with the same ${trend.bucket}s last year`}
-    >
-      {hasData ? (
-        <>
-          <ul className="flex flex-wrap gap-4 text-xs text-muted-foreground" aria-label="Legend">
+      label={`Revenue · by ${trend.bucket}`}
+      value={formatAud(total)}
+      detail={
+        rounded === null ? (
+          "Nothing to compare from last year"
+        ) : rounded === 0 ? (
+          "About the same as last year"
+        ) : (
+          <>
+            <span
+              className={`flex items-center gap-0.5 font-semibold tabular-nums ${
+                rounded > 0 ? "text-chart-good" : "text-chart-bad"
+              }`}
+            >
+              <Icon className="size-3.5" aria-hidden />
+              {rounded > 0 ? "+" : "−"}
+              {Math.abs(rounded)}%
+            </span>
+            on the same {trend.bucket}s last year
+          </>
+        )
+      }
+      action={
+        hasData && (
+          <ul className="flex gap-3 text-xs text-muted-foreground" aria-label="Legend">
             {Object.values(trendConfig).map((s) => (
               <li key={s.label} className="flex items-center gap-1.5">
-                <span className="h-0.5 w-4 rounded-full" style={{ background: s.color }} />
+                <span className="size-2.5 rounded-[3px]" style={{ background: s.color }} />
                 {s.label}
               </li>
             ))}
           </ul>
-          <ChartContainer config={trendConfig} className="aspect-auto h-64 w-full">
-            <ComposedChart data={trend.points} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+        )
+      }
+    >
+      {hasData ? (
+        <>
+          <ChartContainer config={trendConfig} className="aspect-auto h-56 w-full">
+            <BarChart
+              data={trend.points}
+              barGap={2}
+              barCategoryGap="22%"
+              margin={{ top: 4, right: 0, left: 0, bottom: 0 }}
+            >
               <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
               <XAxis
                 dataKey="label"
                 tickLine={false}
                 axisLine={false}
                 tickMargin={8}
-                minTickGap={24}
+                minTickGap={8}
+                tickFormatter={tick}
               />
               <YAxis
-                width={56}
+                orientation="right"
+                width={52}
                 tickLine={false}
                 axisLine={false}
+                ticks={ticks}
+                domain={[0, ticks[ticks.length - 1]]}
                 tickFormatter={compactAud}
                 className="tabular-nums"
               />
               <ChartTooltip
-                cursor={{ stroke: "var(--chart-grid)", strokeWidth: 1 }}
+                cursor={{ fill: "var(--fill)", radius: 6 }}
                 content={({ active, payload, label }) =>
                   active && payload?.length ? (
                     <Tip
@@ -336,25 +390,21 @@ export function RevenueTrendChart({ trend }: { trend: Trend }) {
                   ) : null
                 }
               />
-              <Line
-                dataKey="lastYear"
-                type="monotone"
-                stroke="var(--color-lastYear)"
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--card)" }}
-              />
-              <Area
+              <Bar
                 dataKey="revenue"
-                type="monotone"
-                stroke="var(--color-revenue)"
-                strokeWidth={2}
                 fill="var(--color-revenue)"
-                fillOpacity={0.1}
-                dot={false}
-                activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--card)" }}
+                radius={[4, 4, 0, 0]}
+                maxBarSize={18}
+                isAnimationActive={false}
               />
-            </ComposedChart>
+              <Bar
+                dataKey="lastYear"
+                fill="var(--color-lastYear)"
+                radius={[4, 4, 0, 0]}
+                maxBarSize={18}
+                isAnimationActive={false}
+              />
+            </BarChart>
           </ChartContainer>
           <TableView
             head={[trend.bucket === "week" ? "Week starting" : "Month", "This period", "Last year"]}
@@ -378,10 +428,24 @@ export function FlavoursChart({ data }: { data: (by: Measure) => Ranked[] }) {
   const [by, setBy] = useState<Measure>("revenue");
   const rows = data(by);
   const format = (v: number) => (by === "revenue" ? formatAud(v) : formatCount(v));
+  const leader = rows.find((r) => r.name !== OTHER_FLAVOUR);
+  const sum = rows.reduce((t, r) => t + r[by], 0);
   return (
     <WidgetCard
-      title="Top flavours"
-      description="Grouped from the cake description; the first flavour mentioned counts"
+      label={`Top flavours · by ${by === "revenue" ? "revenue" : "orders"}`}
+      value={leader?.name}
+      detail={
+        leader &&
+        sum > 0 && (
+          <>
+            <span className="font-semibold text-foreground tabular-nums">
+              {Math.round((leader[by] / sum) * 100)}%
+            </span>
+            of {by === "revenue" ? "revenue" : "orders"} · {format(leader[by])}
+          </>
+        )
+      }
+      footnote="Grouped from the cake description; the first flavour mentioned counts."
       action={<Toggle label="Measure" value={by} options={MEASURES} onChange={setBy} />}
     >
       {rows.length ? (
@@ -406,7 +470,7 @@ export function FlavoursChart({ data }: { data: (by: Measure) => Ranked[] }) {
                 interval={0}
               />
               <ChartTooltip
-                cursor={false}
+                cursor={{ fill: "var(--fill)", radius: 6 }}
                 content={({ active, payload }) =>
                   active && payload?.length ? (
                     <Tip
@@ -458,8 +522,24 @@ export function FlavoursChart({ data }: { data: (by: Measure) => Ranked[] }) {
 
 export function WeekdayChart({ data }: { data: WeekdayCount[] }) {
   const hasData = data.some((d) => d.orders);
+  const count = data.reduce((t, d) => t + d.orders, 0);
+  const busiest = data.reduce((a, d) => (d.orders > a.orders ? d : a), data[0]);
   return (
-    <WidgetCard title="Busiest pickup days" description="Orders by day of the week they're due">
+    <WidgetCard
+      label="Busiest pickup day"
+      value={hasData ? FULL_DAYS[WEEKDAYS.indexOf(busiest.day)] : undefined}
+      detail={
+        hasData && (
+          <>
+            <span className="font-semibold text-foreground tabular-nums">
+              {Math.round((busiest.orders / count) * 100)}%
+            </span>
+            of pickups · {plural(busiest.orders, "order")}
+          </>
+        )
+      }
+      footnote="Orders by the day of the week they're due."
+    >
       {hasData ? (
         <>
           <ChartContainer
@@ -471,7 +551,7 @@ export function WeekdayChart({ data }: { data: WeekdayCount[] }) {
               <XAxis dataKey="day" tickLine={false} axisLine={false} tickMargin={8} />
               <YAxis hide />
               <ChartTooltip
-                cursor={false}
+                cursor={{ fill: "var(--fill)", radius: 6 }}
                 content={({ active, payload }) =>
                   active && payload?.length ? (
                     <Tip
@@ -523,25 +603,40 @@ export function WeekdayChart({ data }: { data: WeekdayCount[] }) {
 
 export function CustomersTable({ rows }: { rows: CustomerRow[] }) {
   return (
-    <WidgetCard title="Top customers" description="By revenue in this period">
+    <WidgetCard
+      label="Top customers · by revenue"
+      value={rows[0]?.name}
+      detail={
+        rows[0] && (
+          <>
+            <span className="font-semibold text-foreground tabular-nums">
+              {formatAud(rows[0].revenue)}
+            </span>
+            from {plural(rows[0].orders, "order")} in this period
+          </>
+        )
+      }
+    >
       {rows.length ? (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead className="text-xs text-muted-foreground">
-              <tr className="border-b">
+              <tr className="shadow-[0_0.5px_0_var(--separator)]">
                 <th className="py-2 pr-3 font-medium">Customer</th>
                 <th className="px-3 py-2 text-right font-medium">Orders</th>
                 <th className="px-3 py-2 text-right font-medium">Revenue</th>
-                <th className="hidden py-2 pl-3 text-right font-medium sm:table-cell">Last order</th>
+                <th className="hidden py-2 pl-3 text-right font-medium sm:table-cell">
+                  Last order
+                </th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-separator">
               {rows.map((c) => (
                 <tr key={c.name}>
-                  <td className="py-2 pr-3">{c.name}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{formatCount(c.orders)}</td>
-                  <td className="px-3 py-2 text-right tabular-nums">{formatAud(c.revenue)}</td>
-                  <td className="hidden py-2 pl-3 text-right whitespace-nowrap tabular-nums sm:table-cell">
+                  <td className="py-2.5 pr-3">{c.name}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{formatCount(c.orders)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{formatAud(c.revenue)}</td>
+                  <td className="hidden py-2.5 pl-3 text-right whitespace-nowrap text-muted-foreground tabular-nums sm:table-cell">
                     {formatDate(c.lastOrder)}
                   </td>
                 </tr>
@@ -560,77 +655,3 @@ export function CustomersTable({ rows }: { rows: CustomerRow[] }) {
 // Upcoming orders
 
 const FULL_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-
-function dayHeading(date: string, today: string) {
-  const offset = daysBetween(today, date);
-  const name = offset === 0 ? "Today" : offset === 1 ? "Tomorrow" : FULL_DAYS[weekdayIndex(date)];
-  return { name, date: `${WEEKDAYS[weekdayIndex(date)]} ${shortDate(date)}` };
-}
-
-export function UpcomingOrders({ days, today }: { days: UpcomingDay[]; today: string }) {
-  const all = days.flatMap((d) => d.orders);
-  const unpriced = all.filter((o) => o.amount === null).length;
-  const total = days.reduce((sum, d) => sum + d.total, 0);
-  const summary = all.length
-    ? `${formatCount(all.length)} order${all.length === 1 ? "" : "s"} · ${formatAud(total)}${
-        unpriced ? ` + ${unpriced} without a price` : ""
-      }`
-    : undefined;
-
-  return (
-    <WidgetCard title="Upcoming orders · next 14 days" description={summary}>
-      {days.length ? (
-        <ol className="flex flex-col gap-4">
-          {days.map((day) => {
-            const heading = dayHeading(day.date, today);
-            return (
-              <li key={day.date} className="flex flex-col gap-1.5">
-                <div className="flex items-baseline justify-between gap-2 border-b pb-1">
-                  <h3 className="text-sm font-medium">
-                    {heading.name}
-                    <span className="font-normal text-muted-foreground"> · {heading.date}</span>
-                  </h3>
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {day.orders.length} order{day.orders.length === 1 ? "" : "s"}
-                    {day.total > 0 && ` · ${formatAud(day.total)}`}
-                  </span>
-                </div>
-                <ul className="flex flex-col gap-2">
-                  {day.orders.map((o, i) => (
-                    <li
-                      key={i}
-                      className="grid grid-cols-[4.5rem_1fr_auto] items-start gap-3 text-sm"
-                    >
-                      <span
-                        className={`tabular-nums ${o.pickupMinutes === null ? "text-muted-foreground" : "font-medium"}`}
-                      >
-                        {o.pickupMinutes === null ? "No time" : formatTime(o.pickupMinutes)}
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block break-words">{o.cakeType ?? "No description"}</span>
-                        {o.customer && (
-                          <span className="block text-xs text-muted-foreground">{o.customer}</span>
-                        )}
-                      </span>
-                      {o.amount === null ? (
-                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs whitespace-nowrap text-muted-foreground">
-                          Price not set
-                        </span>
-                      ) : (
-                        <span className="text-right tabular-nums">{formatAud(o.amount)}</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            );
-          })}
-        </ol>
-      ) : (
-        <p className="py-6 text-center text-sm text-muted-foreground">
-          No orders due in the next 14 days.
-        </p>
-      )}
-    </WidgetCard>
-  );
-}

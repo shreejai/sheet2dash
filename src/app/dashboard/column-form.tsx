@@ -60,7 +60,7 @@ export function ColumnForm({
                 id={id}
                 value={mapping[role] ?? ""}
                 onChange={(e) => setMapping((m) => ({ ...m, [role]: e.target.value || undefined }))}
-                className="h-10 rounded-lg border border-input bg-background px-2 text-base outline-none sm:h-9 sm:text-sm focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="h-9 rounded-lg bg-fill px-2.5 text-base outline-none pointer-coarse:h-11 sm:text-sm focus-visible:ring-2 focus-visible:ring-ring/60"
               >
                 <option value="">{required ? "Choose a column…" : "Not in my sheet"}</option>
                 {headers.map((h) => (
@@ -76,7 +76,7 @@ export function ColumnForm({
       </div>
 
       <section className="flex flex-col gap-2" aria-live="polite">
-        <h2 className="text-sm font-medium">Preview</h2>
+        <h2 className="headline">Preview</h2>
         {missingRequired ? (
           <p className="text-sm text-muted-foreground">
             Choose the due date and amount columns to see a preview.
@@ -100,9 +100,9 @@ export function ColumnForm({
               )}
             </p>
             {recent.length > 0 && (
-              <div className="overflow-x-auto rounded-lg border">
+              <div className="overflow-x-auto rounded-xl bg-background/60">
                 <table className="w-full text-left text-sm">
-                  <thead className="bg-muted/50 text-xs text-muted-foreground">
+                  <thead className="text-xs text-muted-foreground shadow-[0_0.5px_0_var(--separator)]">
                     <tr>
                       <th className="px-3 py-2 font-medium">Due</th>
                       <th className="px-3 py-2 font-medium">Pickup</th>
@@ -111,7 +111,7 @@ export function ColumnForm({
                       <th className="px-3 py-2 text-right font-medium">Amount</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y">
+                  <tbody className="divide-y divide-separator">
                     {recent.map((o, i) => (
                       <tr key={i}>
                         <td className="px-3 py-2 whitespace-nowrap">{formatDate(o.dueDate)}</td>
