@@ -1,4 +1,5 @@
 import { jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import type { ColumnMapping } from "../lib/orders";
 
 // Every table is keyed by the Clerk user id, so a second business can be
 // added later without a migration of existing rows.
@@ -10,7 +11,7 @@ export const sheetConnections = pgTable("sheet_connections", {
   spreadsheetId: text("spreadsheet_id").notNull(),
   spreadsheetName: text("spreadsheet_name").notNull(),
   /** Confirmed column roles, e.g. { dueDate: "due date", amount: "charged" }. Null until confirmed. */
-  columnMapping: jsonb("column_mapping").$type<Record<string, string>>(),
+  columnMapping: jsonb("column_mapping").$type<ColumnMapping>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

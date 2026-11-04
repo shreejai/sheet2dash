@@ -3,9 +3,11 @@
 import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
 import { refresh } from "next/cache";
+import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { sheetConnections } from "@/db/schema";
-import { GoogleApiError, getSpreadsheetMeta } from "@/lib/google/sheets";
+import { GoogleApiError, fetchMergedSheet, getSpreadsheetMeta } from "@/lib/google/sheets";
+import { ROLE_KEYS, isCompleteMapping, type ColumnMapping } from "@/lib/orders";
 import { getGoogleToken, type GoogleTokenResult } from "@/lib/google/token";
 
 async function requireUserId() {
@@ -70,6 +72,38 @@ export async function connectSheet(
 
   refresh();
   return { ok: true };
+}
+
+export async function saveColumnMapping(
+  input: ColumnMapping,
+): Promise<{ ok: false; error: string } | undefined> {
+  const userId = await requireUserId();
+  const db = getDb();
+  const [connection] = await db
+    .select({ spreadsheetId: sheetConnections.spreadsheetId })
+    .from(sheetConnections)
+    .where(eq(sheetConnections.userId, userId));
+  if (!connection) return { ok: false, error: "Connect a sheet first." };
+
+  const token = await getGoogleToken(userId);
+  if (token.status !== "ok") return { ok: false, error: "Google access is missing. Reconnect." };
+  // Check the chosen columns against the sheet's real headers, not the browser's copy.
+  const { headers } = await fetchMergedSheet(connection.spreadsheetId, token.token);
+
+  const mapping: ColumnMapping = {};
+  for (const role of ROLE_KEYS) {
+    const value = input?.[role];
+    if (typeof value === "string" && value) mapping[role] = value;
+  }
+  if (!isCompleteMapping(mapping, headers)) {
+    return { ok: false, error: "Choose a column for the due date and the amount." };
+  }
+
+  await db
+    .update(sheetConnections)
+    .set({ columnMapping: mapping, updatedAt: new Date() })
+    .where(eq(sheetConnections.userId, userId));
+  redirect("/dashboard");
 }
 
 export async function disconnectSheet() {
