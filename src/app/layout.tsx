@@ -34,7 +34,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sheet2Dashboard",
+  title: "Sheet2Dash",
   description: "A live dashboard for a small cake business, built from its Google Sheet.",
 };
 

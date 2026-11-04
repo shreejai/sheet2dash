@@ -10,7 +10,7 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
       <header className="flex items-center justify-between gap-2 border-b px-4 py-2.5">
         <div className="flex min-w-0 items-center gap-3">
           <Link href="/dashboard" className="hidden font-semibold sm:block">
-            Sheet2Dashboard
+            Sheet2Dash
           </Link>
           <NavLinks />
         </div>

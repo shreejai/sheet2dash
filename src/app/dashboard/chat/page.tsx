@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Chat } from "./chat";
 
-export const metadata = { title: "Ask · Sheet2Dashboard" };
+export const metadata = { title: "Ask · Sheet2Dash" };
 
 export default function ChatPage() {
   return (

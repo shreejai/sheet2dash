@@ -1,4 +1,4 @@
-# Sheet2Dashboard — v1 plan
+# Sheet2Dash — v1 plan
 
 First user: a small cake business.
 
