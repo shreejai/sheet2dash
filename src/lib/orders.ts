@@ -1,6 +1,6 @@
 // Turns raw merged sheet rows into typed orders. Pure: runs on server and client.
 
-import type { CellValue } from "@/lib/google/sheets";
+import type { CellValue } from "./google/sheets";
 
 export const ROLES = {
   dueDate: { label: "Due date", required: true, hint: "When the order is picked up" },

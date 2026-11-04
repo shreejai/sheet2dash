@@ -5,7 +5,8 @@ import { eq } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
-import { sheetConnections } from "@/db/schema";
+import { dashboards, sheetConnections } from "@/db/schema";
+import { generateSpec } from "@/lib/dashboard-spec";
 import { GoogleApiError, fetchMergedSheet, getSpreadsheetMeta } from "@/lib/google/sheets";
 import { ROLE_KEYS, isCompleteMapping, type ColumnMapping } from "@/lib/orders";
 import { getGoogleToken, type GoogleTokenResult } from "@/lib/google/token";
@@ -103,6 +104,14 @@ export async function saveColumnMapping(
     .update(sheetConnections)
     .set({ columnMapping: mapping, updatedAt: new Date() })
     .where(eq(sheetConnections.userId, userId));
+
+  // Rebuild the widget list for the confirmed columns.
+  const spec = generateSpec(mapping);
+  await db
+    .insert(dashboards)
+    .values({ userId, spec })
+    .onConflictDoUpdate({ target: dashboards.userId, set: { spec, updatedAt: new Date() } });
+
   redirect("/dashboard");
 }
 

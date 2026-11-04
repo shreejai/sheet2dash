@@ -3,22 +3,19 @@ import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { sheetConnections } from "@/db/schema";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { dashboards, sheetConnections } from "@/db/schema";
+import { generateSpec, readSpec } from "@/lib/dashboard-spec";
+import { todayIso } from "@/lib/dates";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { formatAud, formatCount, formatDate } from "@/lib/format";
+import { formatCount } from "@/lib/format";
 import { GoogleApiError, fetchMergedSheet, type MergedSheet } from "@/lib/google/sheets";
 import { getGoogleToken } from "@/lib/google/token";
 import { ROLES, ROLE_KEYS, detectColumns, isCompleteMapping, parseOrders } from "@/lib/orders";
 import { disconnectSheet } from "./actions";
 import { ColumnForm } from "./column-form";
 import { ConnectSheetButton } from "./connect-sheet-button";
+import { DashboardView } from "./dashboard-view";
 
 export default function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
   return (
@@ -53,8 +50,8 @@ async function SheetSection({ searchParams }: Pick<PageProps<"/dashboard">, "sea
         <CardHeader>
           <CardTitle>Connect your Google Sheet</CardTitle>
           <CardDescription>
-            Pick your orders spreadsheet. The app can only see the file you pick, and never
-            changes it.
+            Pick your orders spreadsheet. The app can only see the file you pick, and never changes
+            it.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -106,8 +103,8 @@ async function SheetSection({ searchParams }: Pick<PageProps<"/dashboard">, "sea
         <CardHeader>
           <SheetTitle href={sheetLink} title={sheet.title} />
           <CardDescription>
-            Check which column holds what. The guesses come from your column names; change any
-            that are wrong.
+            Check which column holds what. The guesses come from your column names; change any that
+            are wrong.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-6">
@@ -124,79 +121,88 @@ async function SheetSection({ searchParams }: Pick<PageProps<"/dashboard">, "sea
   }
 
   const { orders, skipped } = parseOrders(sheet.headers, sheet.rows, saved);
-  const dates = orders.map((o) => o.dueDate).sort();
-  const revenue = orders.reduce((sum, o) => sum + o.amount, 0);
   const skippedTotal = skipped.noDate + skipped.noAmount;
 
+  // Widget list: saved when columns were confirmed; generated for older accounts.
+  const db = getDb();
+  const [stored] = await db.select().from(dashboards).where(eq(dashboards.userId, userId));
+  let spec = readSpec(stored?.spec);
+  if (!spec) {
+    spec = generateSpec(saved);
+    await db
+      .insert(dashboards)
+      .values({ userId, spec })
+      .onConflictDoUpdate({ target: dashboards.userId, set: { spec, updatedAt: new Date() } });
+  }
+
   return (
-    <Card>
-      <CardHeader>
-        <SheetTitle href={sheetLink} title={sheet.title} />
-        <CardDescription>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-0.5">
+        <h1 className="text-xl font-semibold tracking-tight">
+          <a
+            href={sheetLink}
+            target="_blank"
+            rel="noreferrer"
+            className="underline-offset-4 hover:underline"
+          >
+            {sheet.title}
+          </a>
+        </h1>
+        <p className="text-sm text-muted-foreground">
           {formatCount(orders.length)} orders
-          {dates.length > 0 && ` · ${formatDate(dates[0])} – ${formatDate(dates.at(-1)!)}`}
-          {skippedTotal > 0 && ` · ${formatCount(skippedTotal)} rows skipped`}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-6">
-        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          <Stat label="Orders" value={formatCount(orders.length)} />
-          <Stat label="Revenue (all time)" value={formatAud(revenue)} />
-          <Stat
-            label="Average order"
-            value={orders.length ? formatAud(Math.round(revenue / orders.length)) : "—"}
-          />
-        </dl>
-
-        <section className="flex flex-col gap-2">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-sm font-medium">Columns</h2>
-            <Button
-              size="sm"
-              variant="ghost"
-              nativeButton={false}
-              render={<Link href="/dashboard?columns=edit" />}
-            >
-              Edit columns
-            </Button>
-          </div>
-          <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
-            {ROLE_KEYS.map((role) => (
-              <div key={role} className="contents">
-                <dt className="text-muted-foreground">{ROLES[role].label}</dt>
-                <dd>{saved[role] ?? "—"}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-
-        <p className="text-xs text-muted-foreground">
-          Charts, KPIs and upcoming orders arrive in the next step.
+          {skippedTotal > 0 &&
+            ` · ${formatCount(skippedTotal)} rows skipped (no due date or amount)`}
         </p>
+      </div>
 
-        <SheetDetails sheet={sheet} />
-        <SheetActions />
-      </CardContent>
-    </Card>
+      <DashboardView orders={orders} today={todayIso()} spec={spec} />
+
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>Sheet settings</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <section className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-medium">Columns</h2>
+              <Button
+                size="sm"
+                variant="ghost"
+                nativeButton={false}
+                render={<Link href="/dashboard?columns=edit" />}
+              >
+                Edit columns
+              </Button>
+            </div>
+            <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
+              {ROLE_KEYS.map((role) => (
+                <div key={role} className="contents">
+                  <dt className="text-muted-foreground">{ROLES[role].label}</dt>
+                  <dd>{saved[role] ?? "—"}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+          <SheetDetails sheet={sheet} />
+          <SheetActions />
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
 function SheetTitle({ href, title }: { href: string; title: string }) {
   return (
     <CardTitle>
-      <a href={href} target="_blank" rel="noreferrer" className="underline-offset-4 hover:underline">
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="underline-offset-4 hover:underline"
+      >
         {title}
       </a>
     </CardTitle>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border px-3 py-2">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-lg font-semibold tabular-nums">{value}</dd>
-    </div>
   );
 }
 
