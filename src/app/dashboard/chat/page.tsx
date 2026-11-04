@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { sheetConnections } from "@/db/schema";
+import { getAccess } from "@/lib/access";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Chat } from "./chat";
@@ -19,8 +19,9 @@ export default function ChatPage() {
 }
 
 async function ChatSection() {
-  const { userId } = await auth();
-  if (!userId) return null;
+  const access = await getAccess();
+  if (!access) return null;
+  const userId = access.ownerId; // a viewer asks about the shared dashboard
 
   const [connection] = await getDb()
     .select({ columnMapping: sheetConnections.columnMapping })

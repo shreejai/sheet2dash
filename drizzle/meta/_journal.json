@@ -15,6 +15,13 @@
       "when": 1793762271734,
       "tag": "0001_magenta_mysterio",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793779188024,
+      "tag": "0002_clumsy_sally_floyd",
+      "breakpoints": true
     }
   ]
 }

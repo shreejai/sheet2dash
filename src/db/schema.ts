@@ -1,4 +1,13 @@
-import { integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import {
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
 import type { ColumnMapping } from "../lib/orders";
 
 // Every table is keyed by the Clerk user id, so a second business can be
@@ -34,4 +43,23 @@ export const chatUsage = pgTable(
     count: integer("count").notNull().default(0),
   },
   (t) => [primaryKey({ columns: [t.userId, t.day] })],
+);
+
+/**
+ * People the owner has shared their dashboard with, by email. A signed-in
+ * user whose verified email matches can view the owner's dashboard and chat
+ * (read-only); the sheet is still read with the owner's Google access.
+ */
+export const dashboardViewers = pgTable(
+  "dashboard_viewers",
+  {
+    ownerUserId: text("owner_user_id").notNull(),
+    /** Lower-cased. */
+    email: text("email").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.ownerUserId, t.email] }),
+    index("dashboard_viewers_email_idx").on(t.email),
+  ],
 );

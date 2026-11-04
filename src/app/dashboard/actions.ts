@@ -1,11 +1,12 @@
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
-import { eq } from "drizzle-orm";
+import { auth, currentUser } from "@clerk/nextjs/server";
+import { and, eq } from "drizzle-orm";
 import { refresh, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
-import { dashboards, sheetConnections } from "@/db/schema";
+import { dashboardViewers, dashboards, sheetConnections } from "@/db/schema";
+import { getAccess } from "@/lib/access";
 import { generateSpec } from "@/lib/dashboard-spec";
 import { getSheet, sheetTag } from "@/lib/google/cached-sheet";
 import { GoogleApiError, getSpreadsheetMeta } from "@/lib/google/sheets";
@@ -78,7 +79,10 @@ export async function connectSheet(
 
 /** "Refresh" button: drop the cached copy so the page re-reads the sheet now. */
 export async function refreshSheet() {
-  updateTag(sheetTag(await requireUserId()));
+  // A viewer refreshes the dashboard they're looking at: the owner's sheet.
+  const access = await getAccess();
+  if (!access) throw new Error("Not signed in");
+  updateTag(sheetTag(access.ownerId));
 }
 
 export async function saveColumnMapping(
@@ -124,5 +128,61 @@ export async function saveColumnMapping(
 export async function disconnectSheet() {
   const userId = await requireUserId();
   await getDb().delete(sheetConnections).where(eq(sheetConnections.userId, userId));
+  refresh();
+}
+
+// ---------------------------------------------------------------------------
+// Sharing (owner only: these act on the signed-in user's own dashboard)
+
+const MAX_VIEWERS = 10;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export type ShareState = { error?: string; added?: string } | undefined;
+
+export async function addViewer(_prev: ShareState, formData: FormData): Promise<ShareState> {
+  const userId = await requireUserId();
+  const email = String(formData.get("email") ?? "")
+    .trim()
+    .toLowerCase();
+  if (!EMAIL.test(email) || email.length > 254) {
+    return { error: "Enter a valid email address." };
+  }
+
+  const db = getDb();
+  const [connection] = await db
+    .select({ userId: sheetConnections.userId })
+    .from(sheetConnections)
+    .where(eq(sheetConnections.userId, userId));
+  if (!connection) return { error: "Connect a sheet before sharing it." };
+
+  const user = await currentUser();
+  if (user?.emailAddresses.some((e) => e.emailAddress.toLowerCase() === email)) {
+    return { error: "That's your own email address." };
+  }
+
+  const existing = await db
+    .select({ email: dashboardViewers.email })
+    .from(dashboardViewers)
+    .where(eq(dashboardViewers.ownerUserId, userId));
+  if (existing.some((v) => v.email === email)) return { error: "Already shared with them." };
+  if (existing.length >= MAX_VIEWERS) {
+    return { error: `You can share with up to ${MAX_VIEWERS} people.` };
+  }
+
+  await db.insert(dashboardViewers).values({ ownerUserId: userId, email }).onConflictDoNothing();
+  refresh();
+  return { added: email };
+}
+
+export async function removeViewer(email: string) {
+  const userId = await requireUserId();
+  await getDb()
+    .delete(dashboardViewers)
+    .where(
+      and(
+        eq(dashboardViewers.ownerUserId, userId),
+        eq(dashboardViewers.email, String(email).toLowerCase()),
+      ),
+    );
   refresh();
 }

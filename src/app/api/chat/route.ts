@@ -1,4 +1,3 @@
-import { auth } from "@clerk/nextjs/server";
 import { openai } from "@ai-sdk/openai";
 import {
   convertToModelMessages,
@@ -17,6 +16,7 @@ import { chatUsage } from "@/db/schema";
 import { GROUP_BY, SORT_BY, aggregate, listOrders } from "@/lib/chat-tools";
 import { WEEKDAYS, todayIso, weekdayIndex } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
+import { getAccess } from "@/lib/access";
 import { loadOrders } from "@/lib/load-orders";
 
 const MODEL = process.env.OPENAI_MODEL || "gpt-5.4-nano";
@@ -45,8 +45,10 @@ const text = (m: UIMessage) =>
     .trim();
 
 export async function POST(req: Request) {
-  const { userId } = await auth();
-  if (!userId) return new Response("Please sign in again.", { status: 401 });
+  const access = await getAccess();
+  if (!access) return new Response("Please sign in again.", { status: 401 });
+  // Questions count against the person asking; the data is the dashboard they can see.
+  const { userId, ownerId } = access;
 
   const body = (await req.json().catch(() => null)) as { messages?: unknown } | null;
   const validated = await safeValidateUIMessages({ messages: body?.messages });
@@ -83,7 +85,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const data = await loadOrders(userId);
+  const data = await loadOrders(ownerId);
   if (!data.ok) return new Response(data.problem, { status: 409 });
   const { orders, unpriced } = data;
 

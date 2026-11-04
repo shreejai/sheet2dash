@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { auth } from "@clerk/nextjs/server";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { dashboards, sheetConnections } from "@/db/schema";
+import { dashboardViewers, dashboards, sheetConnections } from "@/db/schema";
+import { getAccess, ownerDisplayName } from "@/lib/access";
 import { generateSpec, readSpec } from "@/lib/dashboard-spec";
 import { todayIso } from "@/lib/dates";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +17,7 @@ import { ColumnForm } from "./column-form";
 import { ConnectSheetButton } from "./connect-sheet-button";
 import { DashboardView } from "./dashboard-view";
 import { LiveRegion } from "./live-region";
+import { Sharing } from "./sharing";
 
 export default function DashboardPage({ searchParams }: PageProps<"/dashboard">) {
   return (
@@ -37,8 +38,11 @@ function LoadingCard() {
 }
 
 async function SheetSection({ searchParams }: Pick<PageProps<"/dashboard">, "searchParams">) {
-  const { userId } = await auth();
-  if (!userId) return null; // the proxy already redirects signed-out users
+  const access = await getAccess();
+  if (!access) return null; // the proxy already redirects signed-out users
+  // A viewer sees the owner's dashboard (read-only); everyone else sees their own.
+  const { ownerId: userId, role } = access;
+  const isOwner = role === "owner";
 
   const [connection] = await getDb()
     .select()
@@ -72,8 +76,12 @@ async function SheetSection({ searchParams }: Pick<PageProps<"/dashboard">, "sea
           <SheetTitle href={sheetLink} title={connection.spreadsheetName} />
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <p className="text-sm text-destructive">{result.problem}</p>
-          <SheetActions reconnect />
+          <p className="text-sm text-destructive">
+            {isOwner
+              ? result.problem
+              : "The dashboard can't read the sheet right now. Ask the person who shared it to reconnect it."}
+          </p>
+          {isOwner && <SheetActions reconnect />}
         </CardContent>
       </Card>
     );
@@ -84,7 +92,21 @@ async function SheetSection({ searchParams }: Pick<PageProps<"/dashboard">, "sea
   const saved = connection.columnMapping;
   const confirmed = saved && isCompleteMapping(saved, sheet.headers);
 
-  if (!confirmed || columns === "edit") {
+  if (!confirmed && !isOwner) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>{sheet.title}</CardTitle>
+          <CardDescription>
+            This dashboard isn&apos;t set up yet. It will appear here once its owner confirms the
+            sheet&apos;s columns.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  if (!confirmed || (isOwner && columns === "edit")) {
     return (
       <Card>
         <CardHeader>
@@ -107,7 +129,7 @@ async function SheetSection({ searchParams }: Pick<PageProps<"/dashboard">, "sea
     );
   }
 
-  const { orders, unpriced, skipped } = parseOrders(sheet.headers, sheet.rows, saved);
+  const { orders, unpriced, skipped } = parseOrders(sheet.headers, sheet.rows, saved!);
   const skippedTotal = skipped.noDate + skipped.noAmount;
 
   // Widget list: saved when columns were confirmed; generated for older accounts.
@@ -115,12 +137,22 @@ async function SheetSection({ searchParams }: Pick<PageProps<"/dashboard">, "sea
   const [stored] = await db.select().from(dashboards).where(eq(dashboards.userId, userId));
   let spec = readSpec(stored?.spec);
   if (!spec) {
-    spec = generateSpec(saved);
+    spec = generateSpec(saved!);
     await db
       .insert(dashboards)
       .values({ userId, spec })
       .onConflictDoUpdate({ target: dashboards.userId, set: { spec, updatedAt: new Date() } });
   }
+
+  const viewers = isOwner
+    ? (
+        await db
+          .select({ email: dashboardViewers.email })
+          .from(dashboardViewers)
+          .where(eq(dashboardViewers.ownerUserId, userId))
+          .orderBy(asc(dashboardViewers.createdAt))
+      ).map((v) => v.email)
+    : [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -143,42 +175,50 @@ async function SheetSection({ searchParams }: Pick<PageProps<"/dashboard">, "sea
               {skippedTotal > 0 &&
                 ` · ${formatCount(skippedTotal)} rows not counted (no due date or price)`}
             </p>
+            {!isOwner && (
+              <p className="text-xs text-muted-foreground">
+                Shared with you by {await ownerDisplayName(userId)} · view only
+              </p>
+            )}
           </div>
         }
       >
         <DashboardView orders={orders} unpriced={unpriced} today={todayIso()} spec={spec} />
       </LiveRegion>
 
-      <Card size="sm">
-        <CardHeader>
-          <CardTitle>Sheet settings</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <section className="flex flex-col gap-2">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-sm font-medium">Columns</h2>
-              <Button
-                size="sm"
-                variant="ghost"
-                nativeButton={false}
-                render={<Link href="/dashboard?columns=edit" />}
-              >
-                Edit columns
-              </Button>
-            </div>
-            <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
-              {ROLE_KEYS.map((role) => (
-                <div key={role} className="contents">
-                  <dt className="text-muted-foreground">{ROLES[role].label}</dt>
-                  <dd>{saved[role] ?? "—"}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-          <SheetDetails sheet={sheet} />
-          <SheetActions />
-        </CardContent>
-      </Card>
+      {isOwner && (
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Sheet settings</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <section className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-sm font-medium">Columns</h2>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  nativeButton={false}
+                  render={<Link href="/dashboard?columns=edit" />}
+                >
+                  Edit columns
+                </Button>
+              </div>
+              <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
+                {ROLE_KEYS.map((role) => (
+                  <div key={role} className="contents">
+                    <dt className="text-muted-foreground">{ROLES[role].label}</dt>
+                    <dd>{saved![role] ?? "—"}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+            <Sharing viewers={viewers} />
+            <SheetDetails sheet={sheet} />
+            <SheetActions />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
