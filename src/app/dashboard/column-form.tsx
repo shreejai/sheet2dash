@@ -120,9 +120,7 @@ export function ColumnForm({
                         </td>
                         <td className="max-w-56 truncate px-3 py-2">{o.cakeType ?? "—"}</td>
                         <td className="px-3 py-2 whitespace-nowrap">{o.customer ?? "—"}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {formatAud(o.amount)}
-                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatAud(o.amount)}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -13,19 +13,32 @@ import {
   revenueTrend,
   topCustomers,
   topFlavours,
+  upcomingOrders,
   type PresetId,
 } from "@/lib/metrics";
-import type { Order } from "@/lib/orders";
-import { CustomersTable, FlavoursChart, KpiRow, RevenueTrendChart, WeekdayChart } from "./widgets";
+import type { Order, UnpricedOrder } from "@/lib/orders";
+import {
+  CustomersTable,
+  FlavoursChart,
+  KpiRow,
+  RevenueTrendChart,
+  UpcomingOrders,
+  WeekdayChart,
+} from "./widgets";
 
 const FULL_WIDTH = new Set<WidgetType>(["kpis", "revenueTrend"]);
+/** Widgets about what's coming up, not the selected period: shown above the date filter. */
+const UNSCOPED = new Set<WidgetType>(["upcoming"]);
 
 export function DashboardView({
   orders,
+  unpriced,
   today,
   spec,
 }: {
   orders: Order[];
+  /** Orders without a price yet: shown as upcoming, never counted as revenue. */
+  unpriced: UnpricedOrder[];
   /** Today in the business's timezone, from the server so both renders agree. */
   today: string;
   spec: DashboardSpec;
@@ -44,8 +57,16 @@ export function DashboardView({
   const sameYear = period.range.from.slice(0, 4) === period.range.to.slice(0, 4);
   const rangeLabel = `${shortDate(period.range.from, !sameYear)} – ${shortDate(period.range.to, true)}`;
 
+  const scoped = spec.widgets.filter((w) => !UNSCOPED.has(w.type));
+
   return (
     <div className="flex flex-col gap-4">
+      {spec.widgets
+        .filter((w) => UNSCOPED.has(w.type))
+        .map(({ id, type }) => (
+          <div key={id}>{renderWidget(type)}</div>
+        ))}
+
       {/* One filter row above everything it scopes. */}
       <div className="flex flex-col gap-2">
         <div role="radiogroup" aria-label="Date range" className="flex flex-wrap gap-1.5">
@@ -96,7 +117,7 @@ export function DashboardView({
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {spec.widgets.map(({ id, type }) => (
+        {scoped.map(({ id, type }) => (
           <div key={id} className={FULL_WIDTH.has(type) ? "lg:col-span-2" : "min-w-0"}>
             {renderWidget(type)}
           </div>
@@ -107,6 +128,10 @@ export function DashboardView({
 
   function renderWidget(type: WidgetType) {
     switch (type) {
+      case "upcoming":
+        return (
+          <UpcomingOrders days={upcomingOrders([...orders, ...unpriced], today)} today={today} />
+        );
       case "kpis":
         return (
           <KpiRow

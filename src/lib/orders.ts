@@ -29,8 +29,13 @@ export type Order = {
   tab: string;
 };
 
+/** An order whose price hasn't been filled in yet. Shown as upcoming, never counted as revenue. */
+export type UnpricedOrder = Omit<Order, "amount"> & { amount: null };
+
 export type ParseResult = {
   orders: Order[];
+  /** Rows with a due date but no amount (also counted in skipped.noAmount). */
+  unpriced: UnpricedOrder[];
   skipped: { noDate: number; noAmount: number };
 };
 
@@ -161,6 +166,7 @@ export function parseOrders(
   const at = (values: CellValue[], role: Role) => (col[role] === -1 ? "" : values[col[role]]);
 
   const orders: Order[] = [];
+  const unpriced: UnpricedOrder[] = [];
   const skipped = { noDate: 0, noAmount: 0 };
   for (const { tab, values } of rows) {
     const dueDate = parseDate(at(values, "dueDate") ?? "");
@@ -168,23 +174,24 @@ export function parseOrders(
       skipped.noDate += 1;
       continue;
     }
-    const amount = parseAmount(at(values, "amount") ?? "");
-    if (amount === null) {
-      skipped.noAmount += 1;
-      continue;
-    }
     const customer = text(at(values, "customer"));
-    orders.push({
+    const base = {
       dueDate,
       pickupMinutes: parseTime(at(values, "pickupTime") ?? ""),
-      amount,
       cakeType: text(at(values, "cakeType")),
       customer,
       customerKey: customer ? norm(customer) : null,
       tab,
-    });
+    };
+    const amount = parseAmount(at(values, "amount") ?? "");
+    if (amount === null) {
+      skipped.noAmount += 1;
+      unpriced.push({ ...base, amount: null });
+      continue;
+    }
+    orders.push({ ...base, amount });
   }
-  return { orders, skipped };
+  return { orders, unpriced, skipped };
 }
 
 /** True if the mapping names every required role, using columns that exist. */

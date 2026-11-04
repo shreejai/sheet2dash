@@ -18,7 +18,7 @@ import {
   type DateRange,
 } from "./dates";
 import { OTHER_FLAVOUR, flavourOf } from "./flavours";
-import type { Order } from "./orders";
+import type { Order, UnpricedOrder } from "./orders";
 
 // ---------------------------------------------------------------------------
 // Periods
@@ -122,11 +122,7 @@ export function firstOrders(all: Order[]) {
  * A customer counts as returning if they'd ordered before this period, or
  * ordered more than once within it.
  */
-export function computeKpis(
-  orders: Order[],
-  range: DateRange,
-  first: Map<string, string>,
-): Kpis {
+export function computeKpis(orders: Order[], range: DateRange, first: Map<string, string>): Kpis {
   const inPeriod = ordersIn(orders, range);
   const revenue = inPeriod.reduce((sum, o) => sum + o.amount, 0);
 
@@ -178,7 +174,8 @@ export function revenueTrend(orders: Order[], range: DateRange): Trend {
         ? addDays(startOfWeek(range.from), i * 7)
         : addMonths(startOfMonth(range.from), i);
     return {
-      label: bucket === "week" ? shortDate(start < range.from ? range.from : start) : monthLabel(start),
+      label:
+        bucket === "week" ? shortDate(start < range.from ? range.from : start) : monthLabel(start),
       revenue: 0,
       lastYear: 0,
     };
@@ -237,7 +234,12 @@ export function topCustomers(orders: Order[], limit = 10): CustomerRow[] {
   const groups = new Map<string, CustomerRow>();
   for (const o of orders) {
     if (!o.customerKey || !o.customer) continue;
-    const g = groups.get(o.customerKey) ?? { name: o.customer, revenue: 0, orders: 0, lastOrder: "" };
+    const g = groups.get(o.customerKey) ?? {
+      name: o.customer,
+      revenue: 0,
+      orders: 0,
+      lastOrder: "",
+    };
     g.revenue += o.amount;
     g.orders += 1;
     if (o.dueDate > g.lastOrder) {
@@ -249,4 +251,36 @@ export function topCustomers(orders: Order[], limit = 10): CustomerRow[] {
   return [...groups.values()]
     .sort((a, b) => b.revenue - a.revenue || b.orders - a.orders)
     .slice(0, limit);
+}
+
+// ---------------------------------------------------------------------------
+// Upcoming orders
+
+export type UpcomingOrder = Order | UnpricedOrder;
+export type UpcomingDay = { date: string; orders: UpcomingOrder[]; total: number };
+
+/**
+ * Orders due from today through the next `days` days, grouped by day and
+ * sorted by pickup time (orders without a time last, in sheet order).
+ * Includes orders that don't have a price yet.
+ */
+export function upcomingOrders(orders: UpcomingOrder[], today: string, days = 14): UpcomingDay[] {
+  const range = { from: today, to: addDays(today, days - 1) };
+  const byDay = new Map<string, UpcomingOrder[]>();
+  for (const o of orders) {
+    if (!inRange(o.dueDate, range)) continue;
+    byDay.set(o.dueDate, [...(byDay.get(o.dueDate) ?? []), o]);
+  }
+  return [...byDay.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, list]) => ({
+      date,
+      orders: list
+        .map((o, i) => ({ o, i }))
+        .sort(
+          (a, b) => (a.o.pickupMinutes ?? Infinity) - (b.o.pickupMinutes ?? Infinity) || a.i - b.i,
+        )
+        .map(({ o }) => o),
+      total: list.reduce((sum, o) => sum + (o.amount ?? 0), 0),
+    }));
 }

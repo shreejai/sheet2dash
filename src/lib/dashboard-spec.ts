@@ -4,6 +4,7 @@
 import type { ColumnMapping } from "./orders";
 
 export const WIDGETS = {
+  upcoming: { title: "Upcoming orders", needs: [] },
   kpis: { title: "Key numbers", needs: [] },
   revenueTrend: { title: "Revenue", needs: [] },
   topFlavours: { title: "Top flavours", needs: ["cakeType"] },
@@ -14,7 +15,7 @@ export const WIDGETS = {
 export type WidgetType = keyof typeof WIDGETS;
 
 export type DashboardSpec = {
-  version: 1;
+  version: 2;
   widgets: { id: string; type: WidgetType }[];
 };
 
@@ -23,17 +24,22 @@ export function generateSpec(mapping: ColumnMapping): DashboardSpec {
   const types = (Object.keys(WIDGETS) as WidgetType[]).filter((type) =>
     WIDGETS[type].needs.every((role) => Boolean(mapping[role])),
   );
-  return { version: 1, widgets: types.map((type) => ({ id: type, type })) };
+  return { version: 2, widgets: types.map((type) => ({ id: type, type })) };
 }
 
-/** Accepts a stored spec only if it's one this code understands. */
+/**
+ * Accepts a stored spec only if it's one this code understands, upgrading
+ * older versions (v1 predates the upcoming-orders widget).
+ */
 export function readSpec(value: unknown): DashboardSpec | null {
   if (!value || typeof value !== "object") return null;
-  const spec = value as Partial<DashboardSpec>;
-  if (spec.version !== 1 || !Array.isArray(spec.widgets)) return null;
-  const widgets = spec.widgets.filter(
-    (w): w is DashboardSpec["widgets"][number] =>
-      Boolean(w) && typeof w.id === "string" && w.type in WIDGETS,
+  const spec = value as { version?: number; widgets?: unknown };
+  if ((spec.version !== 1 && spec.version !== 2) || !Array.isArray(spec.widgets)) return null;
+  const widgets = (spec.widgets as DashboardSpec["widgets"]).filter(
+    (w) => Boolean(w) && typeof w.id === "string" && w.type in WIDGETS,
   );
-  return { version: 1, widgets };
+  if (spec.version === 1 && !widgets.some((w) => w.type === "upcoming")) {
+    widgets.unshift({ id: "upcoming", type: "upcoming" });
+  }
+  return { version: 2, widgets };
 }

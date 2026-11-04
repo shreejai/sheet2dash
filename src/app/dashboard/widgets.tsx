@@ -16,9 +16,18 @@ import {
 } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, type ChartConfig } from "@/components/ui/chart";
-import { formatAud, formatCount, formatDate } from "@/lib/format";
+import { daysBetween, shortDate, weekdayIndex, WEEKDAYS } from "@/lib/dates";
+import { formatAud, formatCount, formatDate, formatTime } from "@/lib/format";
 import { OTHER_FLAVOUR } from "@/lib/flavours";
-import type { Comparison, CustomerRow, Kpis, Ranked, Trend, WeekdayCount } from "@/lib/metrics";
+import type {
+  Comparison,
+  CustomerRow,
+  Kpis,
+  Ranked,
+  Trend,
+  UpcomingDay,
+  WeekdayCount,
+} from "@/lib/metrics";
 import { change } from "@/lib/metrics";
 
 // ---------------------------------------------------------------------------
@@ -542,6 +551,85 @@ export function CustomersTable({ rows }: { rows: CustomerRow[] }) {
         </div>
       ) : (
         <Empty />
+      )}
+    </WidgetCard>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Upcoming orders
+
+const FULL_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+function dayHeading(date: string, today: string) {
+  const offset = daysBetween(today, date);
+  const name = offset === 0 ? "Today" : offset === 1 ? "Tomorrow" : FULL_DAYS[weekdayIndex(date)];
+  return { name, date: `${WEEKDAYS[weekdayIndex(date)]} ${shortDate(date)}` };
+}
+
+export function UpcomingOrders({ days, today }: { days: UpcomingDay[]; today: string }) {
+  const all = days.flatMap((d) => d.orders);
+  const unpriced = all.filter((o) => o.amount === null).length;
+  const total = days.reduce((sum, d) => sum + d.total, 0);
+  const summary = all.length
+    ? `${formatCount(all.length)} order${all.length === 1 ? "" : "s"} · ${formatAud(total)}${
+        unpriced ? ` + ${unpriced} without a price` : ""
+      }`
+    : undefined;
+
+  return (
+    <WidgetCard title="Upcoming orders · next 14 days" description={summary}>
+      {days.length ? (
+        <ol className="flex flex-col gap-4">
+          {days.map((day) => {
+            const heading = dayHeading(day.date, today);
+            return (
+              <li key={day.date} className="flex flex-col gap-1.5">
+                <div className="flex items-baseline justify-between gap-2 border-b pb-1">
+                  <h3 className="text-sm font-medium">
+                    {heading.name}
+                    <span className="font-normal text-muted-foreground"> · {heading.date}</span>
+                  </h3>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {day.orders.length} order{day.orders.length === 1 ? "" : "s"}
+                    {day.total > 0 && ` · ${formatAud(day.total)}`}
+                  </span>
+                </div>
+                <ul className="flex flex-col gap-2">
+                  {day.orders.map((o, i) => (
+                    <li
+                      key={i}
+                      className="grid grid-cols-[4.5rem_1fr_auto] items-start gap-3 text-sm"
+                    >
+                      <span
+                        className={`tabular-nums ${o.pickupMinutes === null ? "text-muted-foreground" : "font-medium"}`}
+                      >
+                        {o.pickupMinutes === null ? "No time" : formatTime(o.pickupMinutes)}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block break-words">{o.cakeType ?? "No description"}</span>
+                        {o.customer && (
+                          <span className="block text-xs text-muted-foreground">{o.customer}</span>
+                        )}
+                      </span>
+                      {o.amount === null ? (
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs whitespace-nowrap text-muted-foreground">
+                          Price not set
+                        </span>
+                      ) : (
+                        <span className="text-right tabular-nums">{formatAud(o.amount)}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            );
+          })}
+        </ol>
+      ) : (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          No orders due in the next 14 days.
+        </p>
       )}
     </WidgetCard>
   );

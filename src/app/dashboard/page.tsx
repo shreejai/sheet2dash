@@ -120,7 +120,7 @@ async function SheetSection({ searchParams }: Pick<PageProps<"/dashboard">, "sea
     );
   }
 
-  const { orders, skipped } = parseOrders(sheet.headers, sheet.rows, saved);
+  const { orders, unpriced, skipped } = parseOrders(sheet.headers, sheet.rows, saved);
   const skippedTotal = skipped.noDate + skipped.noAmount;
 
   // Widget list: saved when columns were confirmed; generated for older accounts.
@@ -155,7 +155,7 @@ async function SheetSection({ searchParams }: Pick<PageProps<"/dashboard">, "sea
         </p>
       </div>
 
-      <DashboardView orders={orders} today={todayIso()} spec={spec} />
+      <DashboardView orders={orders} unpriced={unpriced} today={todayIso()} spec={spec} />
 
       <Card size="sm">
         <CardHeader>
