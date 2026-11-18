@@ -171,6 +171,13 @@ export const WIDGETS = {
     needs: ["muscle"],
     settings: {},
   },
+  balance: {
+    kind: "fitness",
+    title: "Training balance",
+    blurb: "Which muscle groups get the most work, and which are neglected",
+    needs: ["muscle"],
+    settings: {},
+  },
   progress: {
     kind: "fitness",
     title: "Exercise progress",

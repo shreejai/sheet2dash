@@ -114,6 +114,34 @@ export function setsByMuscle(entries: WorkoutEntry[]): MuscleRow[] {
   return other ? [...ranked, other] : ranked;
 }
 
+/**
+ * Muscle groups around the balance chart, clockwise from the top: push on the
+ * right, pull on the left, shoulders at the top and legs at the bottom, so a
+ * lopsided shape shows an imbalance.
+ */
+export const BALANCE_ORDER: MuscleGroup[] = [
+  "Shoulders",
+  "Chest",
+  "Triceps",
+  "Core",
+  "Legs",
+  "Forearms",
+  "Biceps",
+  "Back",
+];
+
+export type BalancePoint = { group: MuscleGroup; sets: number; exercises: number };
+
+/** Sets and exercises for every muscle group (zero when untrained), in chart order. */
+export function muscleBalance(entries: WorkoutEntry[]): BalancePoint[] {
+  const rows = new Map(setsByMuscle(entries).map((r) => [r.name, r]));
+  return BALANCE_ORDER.map((group) => ({
+    group,
+    sets: rows.get(group)?.sets ?? 0,
+    exercises: rows.get(group)?.exercises ?? 0,
+  }));
+}
+
 // ---------------------------------------------------------------------------
 // Training days
 

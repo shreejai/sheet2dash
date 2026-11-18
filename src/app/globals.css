@@ -110,7 +110,7 @@
   /* Bars and header: a light translucent material over scrolling content. */
   --material: rgb(249 249 249 / 0.78);
   /* Data-viz tokens: one accent hue + a recessive comparison gray. */
-  --chart-1: #2a78d6;
+  --chart-1: #28a745; /* data marks are green; blue (--primary) is only for things you click */
   --chart-2: #a8a7a0;
   --chart-grid: #e1e0d9;
   --chart-good: #006300;
@@ -159,7 +159,7 @@
   --input: rgb(84 84 88 / 0.65);
   --ring: #0a84ff;
   --material: rgb(22 22 23 / 0.8);
-  --chart-1: #3987e5;
+  --chart-1: #28a745;
   --chart-2: #6b6a65;
   --chart-grid: #2c2c2e;
   --chart-good: #0ca30c;

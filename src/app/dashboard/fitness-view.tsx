@@ -13,6 +13,7 @@ import {
   computeFitnessKpis,
   entriesIn,
   exerciseProgress,
+  muscleBalance,
   muscleRecovery,
   recentSessions,
   setsByMuscle,
@@ -22,6 +23,7 @@ import {
 import type { BodyWeightEntry, WorkoutEntry } from "@/lib/workouts";
 import { Card, CardContent } from "@/components/ui/card";
 import {
+  BalanceChart,
   BodyWeightChart,
   FitnessKpiRow,
   MuscleChart,
@@ -124,6 +126,8 @@ export function FitnessView({
         );
       case "muscles":
         return <MuscleChart rows={setsByMuscle(inPeriod)} hasSets={hasSets} />;
+      case "balance":
+        return <BalanceChart points={muscleBalance(inPeriod)} hasSets={hasSets} />;
       case "progress":
         return <ProgressWidget rows={exerciseProgress(inPeriod)} />;
       case "bodyWeight":

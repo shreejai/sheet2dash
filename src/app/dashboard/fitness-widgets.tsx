@@ -41,6 +41,7 @@ import {
   type Tile,
 } from "./widgets";
 import { BodyMap } from "./body-map";
+import type { BalancePoint } from "@/lib/workout-metrics";
 
 const NO_WORKOUTS = "No workouts in this period.";
 const oneDecimal = (n: number) => (Math.round(n * 10) / 10).toLocaleString("en-AU");
@@ -355,6 +356,142 @@ export function RecoveryWidget({ rows, windowDays }: { rows: RecoveryRow[]; wind
         </div>
       ) : (
         <Empty>No muscle groups recognised in your target-muscle column yet.</Empty>
+      )}
+    </WidgetCard>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Training balance
+
+const pct = (n: number) => `${Math.round(n * 100)}%`;
+
+/**
+ * A radar of each muscle group's share of the work, push on the right and
+ * pull on the left. Scaled to the biggest share so the shape fills the chart
+ * and the smaller groups stay readable; each axis is labelled with its share.
+ */
+export function BalanceChart({ points, hasSets }: { points: BalancePoint[]; hasSets: boolean }) {
+  const by = hasSets ? "sets" : "exercises";
+  const total = points.reduce((n, p) => n + p[by], 0);
+  const [active, setActive] = useState<number | null>(null);
+
+  const shares = points.map((p) => (total ? p[by] / total : 0));
+  const max = Math.max(...shares) || 1;
+  const ranked = points.map((p, i) => ({ ...p, share: shares[i] })).sort((a, b) => b.share - a.share);
+  const top = ranked[0];
+  const least = ranked.filter((p) => p.share < 0.05);
+  const neglected = least.length ? least : ranked.slice(-2).reverse();
+
+  const [W, H, cx, cy, R] = [340, 280, 170, 140, 96];
+  const at = (i: number, r: number) => {
+    const a = (i / points.length) * 2 * Math.PI - Math.PI / 2;
+    return [cx + Math.cos(a) * r, cy + Math.sin(a) * r] as const;
+  };
+  const vertex = (i: number) => at(i, (shares[i] / max) * R);
+  const shape = points.map((_, i) => vertex(i).join(",")).join(" ");
+  const shown = active === null ? null : { ...points[active], share: shares[active] };
+
+  return (
+    <WidgetCard
+      label={`Training balance · share of ${by}`}
+      value={total ? `Most: ${top.group}` : undefined}
+      detail={
+        total > 0 &&
+        `Least: ${neglected.map((p) => `${p.group} ${pct(p.share)}`).join(", ")}`
+      }
+      footnote="Push on the right, pull on the left: a lopsided shape shows an imbalance. An exercise that works two groups counts for both."
+    >
+      {total ? (
+        <div className="flex flex-col items-center gap-2">
+          <svg
+            viewBox={`0 0 ${W} ${H}`}
+            className="w-full max-w-sm"
+            role="img"
+            aria-label={`Share of ${by} by muscle group: ${points.map((p, i) => `${p.group} ${pct(shares[i])}`).join(", ")}.`}
+            onMouseLeave={() => setActive(null)}
+          >
+            {/* Rings at a third, two thirds and the full scale, plus the spokes */}
+            {[1 / 3, 2 / 3, 1].map((f) => (
+              <polygon
+                key={f}
+                points={points.map((_, i) => at(i, R * f).join(",")).join(" ")}
+                fill="none"
+                stroke="var(--chart-grid)"
+                strokeWidth={1}
+              />
+            ))}
+            {points.map((_, i) => {
+              const [x, y] = at(i, R);
+              return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="var(--chart-grid)" strokeWidth={1} />;
+            })}
+
+            <polygon
+              points={shape}
+              fill="var(--chart-1)"
+              fillOpacity={0.25}
+              stroke="var(--chart-1)"
+              strokeWidth={2}
+              strokeLinejoin="round"
+            />
+
+            {points.map((p, i) => {
+              const [x, y] = vertex(i);
+              const [lx, ly] = at(i, R + 22);
+              const anchor = Math.abs(lx - cx) < 4 ? "middle" : lx > cx ? "start" : "end";
+              const isActive = active === i;
+              return (
+                <g
+                  key={p.group}
+                  onMouseEnter={() => setActive(i)}
+                  onClick={() => setActive(isActive ? null : i)}
+                  className="cursor-default"
+                >
+                  {/* A generous hit area: the label and the point */}
+                  <circle cx={(x + lx) / 2} cy={(y + ly) / 2} r={26} fill="transparent" />
+                  <circle
+                    cx={x}
+                    cy={y}
+                    r={isActive ? 5.5 : 4}
+                    fill="var(--chart-1)"
+                    stroke="var(--card)"
+                    strokeWidth={2}
+                  />
+                  <text
+                    x={lx}
+                    y={ly - 2}
+                    textAnchor={anchor}
+                    className="tabular-nums"
+                    style={{ fill: "var(--foreground)", fontSize: 13, fontWeight: isActive ? 600 : 500 }}
+                  >
+                    {pct(shares[i])}
+                  </text>
+                  <text
+                    x={lx}
+                    y={ly + 13}
+                    textAnchor={anchor}
+                    style={{
+                      fill: "var(--muted-foreground)",
+                      fontSize: 12,
+                      fontWeight: isActive ? 600 : 400,
+                    }}
+                  >
+                    {p.group}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
+          <p aria-hidden className="min-h-4 text-center text-xs text-muted-foreground">
+            {shown
+              ? shown[by]
+                ? `${shown.group} · ${plural(shown[by], by.slice(0, -1))} · ${pct(shown.share)} of ${by}`
+                : `${shown.group} · nothing logged in this period`
+              : "Hover or tap a muscle group"}
+          </p>
+        </div>
+      ) : (
+        <Empty>No muscle groups recognised in this period.</Empty>
       )}
     </WidgetCard>
   );

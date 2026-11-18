@@ -2,7 +2,7 @@
 
 # Sheet2Dash
 
-**Turn a Google Sheet of orders into a live dashboard, straight from the sheet.**
+**Turn a Google Sheet into a live dashboard, straight from the sheet: a shop's orders or your workout log.**
 
 [Live app](https://sheet2dash.vercel.app) · [Try the demo](https://sheet2dash.vercel.app/demo) (no sign-in) · [Privacy](https://sheet2dash.vercel.app/privacy)
 
@@ -20,11 +20,17 @@
 
 </div>
 
-Sheet2Dash connects to an orders spreadsheet in Google Sheets and builds a dashboard from it:
-upcoming pickups, revenue, best sellers, busiest days, top customers, and a chat that answers
-questions about the orders. It reads the sheet as people actually keep it (a tab per year,
-free-text descriptions, prices filled in later, times like "5:30-6pm" or "Evening") so nobody
-has to change how they work, and the dashboard stays up to date as new orders go in.
+Sheet2Dash connects to a spreadsheet in Google Sheets and builds a dashboard from it, with a
+chat that answers questions about the data. It understands two kinds of sheet:
+
+- **Orders:** upcoming pickups, revenue, best sellers, busiest days and top customers.
+- **Workouts:** training days, muscle recovery on a body map, training balance, volume and
+  exercise progress.
+
+It reads the sheet as people actually keep it (a tab per year, a title above the headers,
+free-text descriptions, prices filled in later, rep ranges like "10–12", loads in kilograms or
+cable-stack levels) so nobody has to change how they work, and the dashboard stays up to date
+as new rows go in.
 
 <table>
   <tr>
@@ -38,8 +44,16 @@ has to change how they work, and the dashboard stays up to date as new orders go
 ## Features
 
 - **Connect a sheet in two clicks.** Sign in with Google, then pick the spreadsheet in Google's
-  file picker. The app can only open that one file (the `drive.file` permission), and only
-  reads it.
+  file picker. The app can only open the files you pick (the `drive.file` permission), and only
+  reads them.
+- **Several sheets per account.** Connect a shop's orders and your own workout log under the
+  same Google account and switch between them from the header. Each sheet has its own
+  dashboard, layout, sharing and chat.
+- **Recognises the kind of sheet** from its headers (orders or workouts), lets you change it,
+  and finds the header row even below a title or a summary band.
+
+### Orders
+
 - **Works with a real, messy sheet:**
   - Merges the year tabs (2022, 2023, …), lining up columns by name even when they differ
     between years.
@@ -58,12 +72,40 @@ has to change how they work, and the dashboard stays up to date as new orders go
   - Each card states its main finding in a sentence.
   - Every chart can also be shown as a table.
   - Flavours are grouped from the free-text descriptions.
-- **Ask:** questions in plain English ("How did last month compare with the month before?").
+
+### Workouts
+
+- **Reads a workout log as written:**
+  - Columns for date, exercise, sets, reps, load, target muscle, routine block and notes are
+    guessed and confirmed on a preview; only date and exercise are required.
+  - Rep ranges ("10–12"), "3x10", loads in kg, cable-stack levels or bodyweight, and "—" for
+    not logged. Loads are only ever compared within the same unit.
+  - Target muscles ("Upper Chest & Front Deltoids") are grouped into Chest, Back, Shoulders,
+    Biceps, Triceps, Forearms, Legs and Core; an exercise counts towards every group it works.
+  - An optional body-weight column adds a body-weight chart.
+- **Training days:** a calendar of the last 8, 12 or 26 weeks; hover or tap a day for what you
+  did.
+- **Muscle recovery:** each muscle group is ready or recovering, based on when it was last
+  trained (a 2 or 3 day window), with the sets, exercises and when it'll be ready. A front and
+  back body map colours the muscles (green ready, striped yellow recovering), and hovering a
+  muscle or its card highlights both. The back is split into traps, infraspinatus, teres
+  minor and major, lats and lower back. It's a guide, not medical advice.
+- **Training balance:** a radar of each muscle group's share of your sets, push on the right
+  and pull on the left, so a lopsided shape shows what's being neglected.
+- **Key numbers, training volume** (sets or sessions by week or month), **sets by muscle,
+  exercise progress** (first and latest load) and **recent sessions**, all for the chosen date
+  range.
+
+### Everywhere
+
+- **Ask:** questions in plain English ("How did last month compare with the month before?",
+  "What did I do on my last back day?").
   - The model never does arithmetic. It calls tools that calculate from the sheet, so its
     numbers match the dashboard.
   - Each user has a daily cap on questions.
 - **Edit the dashboard:** hide, add back and reorder widgets, and set options per widget
-  (days ahead, last-year comparison, how many flavours or customers to show).
+  (days ahead, last-year comparison, how many flavours or customers to show, the recovery
+  window).
 - **Read-only sharing:** the owner adds an email address, and that person signs in and sees the
   same dashboard without needing access to the sheet.
 - **Always live:** refreshes every minute while the tab is open, with a manual Refresh that
@@ -74,6 +116,8 @@ has to change how they work, and the dashboard stays up to date as new orders go
   - Light and dark mode, with Reduce Motion, Reduce Transparency and Increase Contrast
     respected.
   - Every text colour checked for at least 4.5:1 contrast.
+  - Blue only for things you can click; chart data is green, and the chart colours are
+    checked for colour-blind separation (recovering muscles are also striped).
 - **Public demo:** a made-up shop with about 600 generated orders anchored to today, so the
   calendar always has pickups. Edit works in the browser only, and Ask answers the suggested
   questions from the sample data without an AI call.
@@ -97,17 +141,19 @@ has to change how they work, and the dashboard stays up to date as new orders go
 2. **Read and merge.** `lib/google/sheets.ts` fetches every year tab in one request and merges
    them. The result is cached per owner for about 30 seconds (`"use cache: remote"` with a tag),
    so the dashboard is fast and Refresh can clear it.
-3. **Understand.** `lib/orders.ts` maps columns to roles and parses the rows into typed orders.
-   Rows that can't be read are counted and reported, not silently dropped.
-4. **Calculate.** `lib/metrics.ts` holds pure functions for periods, KPIs, trends, rankings and
-   upcoming orders. The dashboard, the chat tools and the demo answers all use the same
-   functions, so they always agree.
+3. **Understand.** `lib/google/header-row.ts` finds the header row, `lib/sheet-kinds.ts`
+   decides what kind of sheet it is, and `lib/orders.ts` or `lib/workouts.ts` maps columns to
+   roles and parses the rows into typed orders or workout entries. Rows that can't be read are
+   counted and reported, not silently dropped.
+4. **Calculate.** `lib/metrics.ts` and `lib/workout-metrics.ts` hold pure functions for periods,
+   KPIs, trends, rankings, recovery and balance. The dashboard, the chat tools and the demo
+   answers all use the same functions, so they always agree.
 5. **Show.** The owner's widget layout is stored as a small validated JSON spec
    (`lib/dashboard-spec.ts`). Viewers see the owner's layout read-only.
 
 **Privacy:**
 - The sheet's contents are never stored in the database, only cached briefly.
-- Only the question and the matching orders are sent to OpenAI.
+- Only the question and the matching orders or workouts are sent to OpenAI.
 - The [privacy page](https://sheet2dash.vercel.app/privacy) has the details.
 
 ## Running it locally
@@ -150,18 +196,30 @@ The demo at `/demo` works without any keys.
 src/
   app/
     page.tsx                 home
-    dashboard/               the signed-in app: dashboard, settings, sharing, editor
-      chat/                  Ask
+    dashboard/               the signed-in app: switcher, editor, widgets
+      [sheet]/               one sheet's dashboard, settings and sharing
+        chat/                Ask
+      new/                   connect another sheet
+      fitness-widgets.tsx    workout widgets
+      body-map.tsx           the recovery body map
     demo/                    public demo (sample data, no sign-in)
     api/chat/route.ts        streaming chat endpoint with tools and a daily cap
     privacy/                 privacy policy
   components/                buttons, cards, segmented control, theme toggle
   db/                        Drizzle schema and client
+  proxy.ts                   remembers the last sheet you opened
   lib/
-    google/                  token, Sheets fetch and merge, cache
-    orders.ts                column detection and parsing
-    metrics.ts               periods, KPIs, trends, rankings
-    chat-tools.ts            aggregate/list tools for Ask
+    access.ts                who can see which sheet (owner or viewer)
+    google/                  token, Sheets fetch and merge, header row, cache
+    sheet-kinds.ts           orders vs workouts: column roles and detection
+    orders.ts                order column detection and parsing
+    workouts.ts              workout parsing: sets, reps, loads, muscle groups
+    metrics.ts               orders: periods, KPIs, trends, rankings
+    workout-metrics.ts       workouts: volume, recovery, balance, progress
+    chat/                    Ask setup per sheet kind
+    chat-tools.ts            order tools for Ask
+    workout-chat-tools.ts    workout tools for Ask
+    body-outline.ts          body map drawings (MIT, see Credits)
     dashboard-spec.ts        widget layout, options and validation
     demo-data.ts             seeded sample orders
 drizzle/                     SQL migrations
@@ -177,3 +235,10 @@ drizzle/                     SQL migrations
 | `npm run db:generate` | Create a migration after changing `src/db/schema.ts` |
 | `npm run db:migrate` | Apply migrations to `DATABASE_URL` |
 | `npm run db:studio` | Browse the database |
+
+## Credits
+
+The body map's muscle drawings come from
+[react-body-highlighter](https://github.com/GV79/react-body-highlighter) by GV79, used under
+the MIT licence (the notice is in `src/lib/body-outline.ts`). They've been smoothed, given gaps
+between muscles, and the upper back split into infraspinatus, teres minor, teres major and lats.
