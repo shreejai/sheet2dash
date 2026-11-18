@@ -6,16 +6,17 @@ import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/segmented-control";
 import {
   WIDGETS,
-  WIDGET_TYPES,
   generateSpec,
+  isScoped,
   missingColumns,
   newWidget,
   setting,
   type DashboardSpec,
   type SettingDef,
   type Widget,
+  widgetTypesFor,
 } from "@/lib/dashboard-spec";
-import { ROLES, type ColumnMapping } from "@/lib/orders";
+import { KINDS, type SheetKind, type SheetMapping } from "@/lib/sheet-kinds";
 
 /*
  * Edit the dashboard the way iOS edits Control Center or Health favourites:
@@ -27,12 +28,14 @@ import { ROLES, type ColumnMapping } from "@/lib/orders";
 type Drag = { index: number; startY: number; dy: number; rects: DOMRect[]; target: number };
 
 export function EditDashboard({
+  kind,
   spec,
   mapping,
   onSave,
 }: {
+  kind: SheetKind;
   spec: DashboardSpec;
-  mapping: ColumnMapping;
+  mapping: SheetMapping;
   /** Where Done saves to: the sheet's saved layout, or (in the demo) the page. */
   onSave: (spec: DashboardSpec) => Promise<{ ok: true } | { ok: false; error: string }>;
 }) {
@@ -59,7 +62,8 @@ export function EditDashboard({
   }
 
   const shown = new Set(draft.map((w) => w.type));
-  const hidden = WIDGET_TYPES.filter((t) => !shown.has(t));
+  const hidden = widgetTypesFor(kind).filter((t) => !shown.has(t));
+  const unscoped = widgetTypesFor(kind).find((t) => !isScoped(t));
 
   return (
     <>
@@ -116,7 +120,8 @@ export function EditDashboard({
               </p>
             )}
             <p className="px-4 text-xs text-muted-foreground">
-              Drag ≡ to reorder. The date range applies to everything below Upcoming pickups.
+              Drag ≡ to reorder.
+              {unscoped && ` The date range applies to everything except ${WIDGETS[unscoped].title}.`}
             </p>
           </section>
 
@@ -146,7 +151,7 @@ export function EditDashboard({
                         <p className="text-sm">{WIDGETS[type].title}</p>
                         <p className="text-xs text-muted-foreground">
                           {missing.length
-                            ? `Needs a ${ROLES[missing[0]].label.toLowerCase()} column`
+                            ? `Needs a ${KINDS[kind].roles[missing[0]].label.toLowerCase()} column`
                             : WIDGETS[type].blurb}
                         </p>
                       </div>
@@ -161,7 +166,7 @@ export function EditDashboard({
             variant="ghost"
             className="self-center"
             onClick={() => {
-              setDraft(generateSpec(mapping).widgets);
+              setDraft(generateSpec(kind, mapping).widgets);
               setExpanded(null);
               setAnnouncement("Reset to the default layout");
             }}

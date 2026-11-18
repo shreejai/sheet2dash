@@ -1,7 +1,8 @@
 // Which widgets a dashboard shows, in what order, and each one's options.
 // Generated from the confirmed column roles, then edited by the owner (plan step 8).
+// Each widget belongs to one sheet kind; a dashboard only ever holds its kind's widgets.
 
-import type { ColumnMapping } from "./orders";
+import type { SheetKind, SheetMapping } from "./sheet-kinds";
 
 type OptionValue = string | number | boolean;
 
@@ -12,7 +13,10 @@ export type SettingDef = {
 };
 
 export const WIDGETS = {
+  // Orders ------------------------------------------------------------------
   upcoming: {
+    kind: "orders",
+    unscoped: true,
     title: "Upcoming pickups",
     blurb: "A calendar of the orders due soon",
     needs: [],
@@ -29,12 +33,14 @@ export const WIDGETS = {
     },
   },
   kpis: {
+    kind: "orders",
     title: "Key numbers",
     blurb: "Revenue, orders, average order and returning customers",
     needs: [],
     settings: {},
   },
   revenueTrend: {
+    kind: "orders",
     title: "Revenue",
     blurb: "Revenue by week or month",
     needs: [],
@@ -50,6 +56,7 @@ export const WIDGETS = {
     },
   },
   topFlavours: {
+    kind: "orders",
     title: "Top flavours",
     blurb: "The flavours that sell best",
     needs: ["cakeType"],
@@ -74,12 +81,14 @@ export const WIDGETS = {
     },
   },
   busiestDays: {
+    kind: "orders",
     title: "Busiest pickup day",
     blurb: "Orders by day of the week",
     needs: [],
     settings: {},
   },
   topCustomers: {
+    kind: "orders",
     title: "Top customers",
     blurb: "Who spends the most",
     needs: ["customer"],
@@ -95,12 +104,97 @@ export const WIDGETS = {
       },
     },
   },
+
+  // Workouts ----------------------------------------------------------------
+  trainingDays: {
+    kind: "fitness",
+    unscoped: true,
+    title: "Training days",
+    blurb: "A calendar of the days you trained",
+    needs: [],
+    settings: {
+      weeks: {
+        label: "Weeks shown",
+        options: [
+          { value: 8, label: "8" },
+          { value: 12, label: "12" },
+          { value: 26, label: "26" },
+        ],
+        default: 12,
+      },
+    },
+  },
+  fitnessKpis: {
+    kind: "fitness",
+    title: "Key numbers",
+    blurb: "Sessions, sets, exercises and sets per session",
+    needs: [],
+    settings: {},
+  },
+  volume: {
+    kind: "fitness",
+    title: "Training volume",
+    blurb: "Sets or sessions by week or month",
+    needs: [],
+    settings: {
+      measure: {
+        label: "Show",
+        options: [
+          { value: "sets", label: "Sets" },
+          { value: "sessions", label: "Sessions" },
+        ],
+        default: "sets",
+      },
+    },
+  },
+  muscles: {
+    kind: "fitness",
+    title: "Sets by muscle",
+    blurb: "Which muscle groups get the most sets",
+    needs: ["muscle"],
+    settings: {},
+  },
+  progress: {
+    kind: "fitness",
+    title: "Exercise progress",
+    blurb: "First and latest load for each exercise",
+    needs: ["load"],
+    settings: {},
+  },
+  bodyWeight: {
+    kind: "fitness",
+    title: "Body weight",
+    blurb: "Your weight over time",
+    needs: ["bodyWeight"],
+    settings: {},
+  },
+  recentSessions: {
+    kind: "fitness",
+    title: "Recent sessions",
+    blurb: "Your latest workouts, with notes",
+    needs: [],
+    settings: {
+      count: {
+        label: "Sessions shown",
+        options: [
+          { value: 3, label: "3" },
+          { value: 5, label: "5" },
+          { value: 10, label: "10" },
+        ],
+        default: 3,
+      },
+    },
+  },
 } as const satisfies Record<
   string,
   {
+    kind: SheetKind;
+    /** About what's coming up or recent, not the selected period: the date range doesn't apply. */
+    unscoped?: true;
     title: string;
     blurb: string;
-    needs: (keyof ColumnMapping)[];
+    /** Column roles (of the widget's kind) it can't work without. */
+    needs: readonly string[];
     settings: Record<string, SettingDef>;
   }
 >;
@@ -117,8 +211,15 @@ export type DashboardSpec = {
 
 export const WIDGET_TYPES = Object.keys(WIDGETS) as WidgetType[];
 
+/** The widgets a sheet of this kind can show, in their default reading order. */
+export const widgetTypesFor = (kind: SheetKind) =>
+  WIDGET_TYPES.filter((t) => WIDGETS[t].kind === kind);
+
+/** Whether the date range applies to this widget. */
+export const isScoped = (type: WidgetType) => !("unscoped" in WIDGETS[type]);
+
 /** The columns a widget needs that aren't mapped, if any. */
-export const missingColumns = (type: WidgetType, mapping: ColumnMapping) =>
+export const missingColumns = (type: WidgetType, mapping: SheetMapping): string[] =>
   WIDGETS[type].needs.filter((role) => !mapping[role]);
 
 /** A setting's value, falling back to its default when unset or no longer valid. */
@@ -130,11 +231,13 @@ export function setting<T extends OptionValue>(widget: Widget, key: string): T {
 
 export const newWidget = (type: WidgetType): Widget => ({ id: type, type, settings: {} });
 
-/** Every widget whose columns are mapped, in a sensible reading order. */
-export function generateSpec(mapping: ColumnMapping): DashboardSpec {
+/** Every widget of the kind whose columns are mapped, in a sensible reading order. */
+export function generateSpec(kind: SheetKind, mapping: SheetMapping): DashboardSpec {
   return {
     version: 3,
-    widgets: WIDGET_TYPES.filter((type) => !missingColumns(type, mapping).length).map(newWidget),
+    widgets: widgetTypesFor(kind)
+      .filter((type) => !missingColumns(type, mapping).length)
+      .map(newWidget),
   };
 }
 
@@ -173,8 +276,41 @@ export function readSpec(value: unknown): DashboardSpec | null {
   return { version: 3, widgets };
 }
 
-/** Drop widgets whose columns are no longer mapped (e.g. after editing the columns). */
-export const fitSpec = (spec: DashboardSpec, mapping: ColumnMapping): DashboardSpec => ({
+/**
+ * Drop widgets of another kind, or whose columns are no longer mapped (e.g.
+ * after editing the columns).
+ */
+export const fitSpec = (
+  spec: DashboardSpec,
+  kind: SheetKind,
+  mapping: SheetMapping,
+): DashboardSpec => ({
   version: 3,
-  widgets: spec.widgets.filter((w) => !missingColumns(w.type, mapping).length),
+  widgets: spec.widgets.filter(
+    (w) => WIDGETS[w.type].kind === kind && !missingColumns(w.type, mapping).length,
+  ),
 });
+
+/**
+ * After the columns change: drop widgets that lost their column, and add the
+ * ones a newly mapped column makes possible (e.g. body weight added later),
+ * at the position they have in the default layout.
+ */
+export function refitSpec(
+  spec: DashboardSpec,
+  kind: SheetKind,
+  before: SheetMapping,
+  after: SheetMapping,
+): DashboardSpec {
+  const widgets = fitSpec(spec, kind, after).widgets;
+  const order = widgetTypesFor(kind);
+  for (const type of order) {
+    const unlocked = missingColumns(type, before).length > 0 && !missingColumns(type, after).length;
+    if (!unlocked || widgets.some((w) => w.type === type)) continue;
+    // Just after the nearest widget that comes before it by default.
+    const prior = order.slice(0, order.indexOf(type));
+    const at = widgets.findLastIndex((w) => prior.includes(w.type)) + 1;
+    widgets.splice(at, 0, newWidget(type));
+  }
+  return { version: 3, widgets };
+}

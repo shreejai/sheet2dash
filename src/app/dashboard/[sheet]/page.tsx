@@ -5,7 +5,7 @@ import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { dashboardViewers, dashboards } from "@/db/schema";
 import { getSheetAccess, ownerDisplayName } from "@/lib/access";
-import { fitSpec, generateSpec, readSpec } from "@/lib/dashboard-spec";
+import { WIDGETS, fitSpec, generateSpec, readSpec } from "@/lib/dashboard-spec";
 import { todayIso } from "@/lib/dates";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ import { ColumnForm } from "../column-form";
 import { ConnectSheetButton } from "../connect-sheet-button";
 import { EditDashboard } from "../edit-dashboard";
 import { DashboardView } from "../dashboard-view";
+import { FitnessView } from "../fitness-view";
 import { LiveRegion } from "../live-region";
 import { Sharing } from "../sharing";
 
@@ -206,36 +207,58 @@ async function SheetSection({ params, searchParams }: Props) {
     </div>
   );
 
+  // Widget list: saved when columns were confirmed; generated for older accounts.
+  const [stored] = await db
+    .select()
+    .from(dashboards)
+    .where(eq(dashboards.connectionId, sheetId));
+  let spec = readSpec(stored?.spec);
+  if (!spec || (spec.widgets.length && WIDGETS[spec.widgets[0].type].kind !== connection.kind)) {
+    spec = generateSpec(connection.kind, saved!);
+    await db
+      .insert(dashboards)
+      .values({ connectionId: sheetId, spec })
+      .onConflictDoUpdate({
+        target: dashboards.connectionId,
+        set: { spec, updatedAt: new Date() },
+      });
+  }
+  // Never show a widget of another kind, or whose column has since been un-mapped.
+  spec = fitSpec(spec, connection.kind, saved!);
+
+  const editButton = isOwner && (
+    <EditDashboard
+      kind={connection.kind}
+      spec={spec}
+      mapping={saved!}
+      onSave={saveDashboard.bind(null, sheetId)}
+    />
+  );
+
   if (connection.kind === "fitness") {
     const { entries, bodyWeights, skipped } = parseWorkouts(sheet.headers, sheet.rows, saved!);
     const sessions = new Set(entries.map((e) => e.date)).size;
-    const sets = entries.reduce((n, e) => n + (e.sets ?? 0), 0);
     const skippedTotal = skipped.noDate + skipped.noExercise;
     return (
       <div className="flex flex-col gap-6">
         <LiveRegion
           sheetId={sheetId}
           fetchedAt={fetchedAt}
+          actions={editButton}
           header={header(
-            `${formatCount(sessions)} sessions · ${formatCount(entries.length)} exercises` +
+            `${formatCount(sessions)} sessions · ${formatCount(entries.length)} exercises logged` +
               (skippedTotal > 0
                 ? ` · ${formatCount(skippedTotal)} rows not counted (no date or exercise)`
                 : ""),
           )}
         >
-          {/* Placeholder until the workout widgets land (PLAN.md v2, step 4). */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Your workout dashboard is on its way</CardTitle>
-              <CardDescription>
-                Read from your sheet so far: {formatCount(sessions)} sessions,{" "}
-                {formatCount(entries.length)} exercises, {formatCount(sets)} sets
-                {bodyWeights.length > 0 &&
-                  `, ${formatCount(bodyWeights.length)} body-weight readings`}
-                .
-              </CardDescription>
-            </CardHeader>
-          </Card>
+          <FitnessView
+            entries={entries}
+            bodyWeights={bodyWeights}
+            hasSets={Boolean(saved!.sets)}
+            today={todayIso()}
+            spec={spec}
+          />
         </LiveRegion>
         {settings}
       </div>
@@ -245,40 +268,12 @@ async function SheetSection({ params, searchParams }: Props) {
   const { orders, unpriced, skipped } = parseOrders(sheet.headers, sheet.rows, saved!);
   const skippedTotal = skipped.noDate + skipped.noAmount;
 
-  // Widget list: saved when columns were confirmed; generated for older accounts.
-  const [stored] = await db
-    .select()
-    .from(dashboards)
-    .where(eq(dashboards.connectionId, sheetId));
-  let spec = readSpec(stored?.spec);
-  if (!spec) {
-    spec = generateSpec(saved!);
-    await db
-      .insert(dashboards)
-      .values({ connectionId: sheetId, spec })
-      .onConflictDoUpdate({
-        target: dashboards.connectionId,
-        set: { spec, updatedAt: new Date() },
-      });
-  }
-
-  // Never show a widget whose column has since been un-mapped.
-  spec = fitSpec(spec, saved!);
-
   return (
     <div className="flex flex-col gap-6">
       <LiveRegion
         sheetId={sheetId}
         fetchedAt={fetchedAt}
-        actions={
-          isOwner && (
-            <EditDashboard
-              spec={spec}
-              mapping={saved!}
-              onSave={saveDashboard.bind(null, sheetId)}
-            />
-          )
-        }
+        actions={editButton}
         header={header(
           `${formatCount(orders.length)} orders` +
             (skippedTotal > 0

@@ -23,7 +23,7 @@ const DEMO_MAPPING: ColumnMapping = {
  */
 export function DemoDashboard({ today }: { today: string }) {
   const { orders, unpriced } = useMemo(() => demoOrders(today), [today]);
-  const [spec, setSpec] = useState<DashboardSpec>(() => generateSpec(DEMO_MAPPING));
+  const [spec, setSpec] = useState<DashboardSpec>(() => generateSpec("orders", DEMO_MAPPING));
 
   return (
     <div className="flex flex-col gap-4">
@@ -35,6 +35,7 @@ export function DemoDashboard({ today }: { today: string }) {
           </p>
         </div>
         <EditDashboard
+          kind="orders"
           spec={spec}
           mapping={DEMO_MAPPING}
           onSave={async (next) => {

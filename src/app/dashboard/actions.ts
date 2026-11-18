@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { dashboardViewers, dashboards, sheetConnections } from "@/db/schema";
 import { getOwnedSheet, getSheetAccess } from "@/lib/access";
-import { fitSpec, generateSpec, readSpec } from "@/lib/dashboard-spec";
+import { fitSpec, generateSpec, readSpec, refitSpec } from "@/lib/dashboard-spec";
 import { getSheet, sheetTag } from "@/lib/google/cached-sheet";
 import { GoogleApiError, getSpreadsheetMeta } from "@/lib/google/sheets";
 import { KINDS, isSheetKind, roleKeys, type SheetKind, type SheetMapping } from "@/lib/sheet-kinds";
@@ -158,18 +158,16 @@ export async function saveColumnMapping(
     .from(dashboards)
     .where(eq(dashboards.connectionId, connection.id));
 
-  if (kind === "orders") {
-    // Keep the owner's layout, minus widgets whose column is no longer mapped;
-    // a first-time setup gets the default layout.
-    const existing = sameKind ? readSpec(stored?.spec) : null;
-    const spec = existing ? fitSpec(existing, mapping) : generateSpec(mapping);
-    await db
-      .insert(dashboards)
-      .values({ connectionId: connection.id, spec })
-      .onConflictDoUpdate({ target: dashboards.connectionId, set: { spec, updatedAt: new Date() } });
-  } else if (!sameKind && stored) {
-    await db.delete(dashboards).where(eq(dashboards.connectionId, connection.id));
-  }
+  // Keep the owner's layout, minus widgets whose column is no longer mapped
+  // and plus any a newly mapped column allows; a first-time setup gets the default.
+  const existing = sameKind ? readSpec(stored?.spec) : null;
+  const spec = existing
+    ? refitSpec(existing, kind, connection.columnMapping ?? {}, mapping)
+    : generateSpec(kind, mapping);
+  await db
+    .insert(dashboards)
+    .values({ connectionId: connection.id, spec })
+    .onConflictDoUpdate({ target: dashboards.connectionId, set: { spec, updatedAt: new Date() } });
 
   redirect(`/dashboard/${connection.id}`);
 }
@@ -186,13 +184,10 @@ export async function saveDashboard(
   const access = await getOwnedSheet(sheetId);
   const mapping = access?.connection.columnMapping;
   if (!access || !mapping) return { ok: false, error: "Set up your sheet first." };
-  if (access.connection.kind !== "orders") {
-    return { ok: false, error: "This sheet's dashboard can't be edited yet." };
-  }
 
   const spec = readSpec(input);
   if (!spec) return { ok: false, error: "That layout couldn't be saved. Try again." };
-  const fitted = fitSpec(spec, mapping);
+  const fitted = fitSpec(spec, access.connection.kind, mapping);
 
   await getDb()
     .insert(dashboards)

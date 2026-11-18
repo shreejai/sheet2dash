@@ -62,16 +62,14 @@ export function WidgetCard({
   );
 }
 
-const plural = (n: number, word: string) => `${formatCount(n)} ${word}${n === 1 ? "" : "s"}`;
+export const plural = (n: number, word: string) => `${formatCount(n)} ${word}${n === 1 ? "" : "s"}`;
 
-function Empty() {
-  return (
-    <p className="py-8 text-center text-sm text-muted-foreground">No orders in this period.</p>
-  );
+export function Empty({ children = "No orders in this period." }: { children?: React.ReactNode }) {
+  return <p className="py-8 text-center text-sm text-muted-foreground">{children}</p>;
 }
 
 /** Every chart has a table twin, so no value is hover-only. */
-function TableView({ head, rows }: { head: string[]; rows: (string | number)[][] }) {
+export function TableView({ head, rows }: { head: string[]; rows: (string | number)[][] }) {
   return (
     <details className="text-sm">
       <summary className="w-fit cursor-pointer py-1 text-xs font-medium text-tint select-none pointer-coarse:py-3">
@@ -106,7 +104,7 @@ function TableView({ head, rows }: { head: string[]; rows: (string | number)[][]
 }
 
 /** Tooltip: value first and strong, series name secondary, keyed by a short line. */
-function Tip({
+export function Tip({
   title,
   rows,
 }: {
@@ -127,7 +125,7 @@ function Tip({
   );
 }
 
-function Toggle<T extends string>({
+export function Toggle<T extends string>({
   value,
   options,
   onChange,
@@ -179,52 +177,30 @@ function Delta({ value, label, unit }: { value: number | null; label: string; un
   );
 }
 
-export function KpiRow({
+export type Tile<K> = {
+  label: string;
+  value: string;
+  pick: (k: K) => number | null;
+  /** How a change is shown: relative (%), or as a difference in points. */
+  unit: "%" | "pts";
+};
+
+/**
+ * A row of headline figures, each with its change against every comparison
+ * period. Shared by the orders and workout dashboards.
+ */
+export function TileRow<K>({
+  tiles,
   current,
   comparisons,
-  showReturning,
   standalone = false,
 }: {
-  current: Kpis;
-  comparisons: { comparison: Comparison; kpis: Kpis }[];
-  showReturning: boolean;
+  tiles: Tile<K>[];
+  current: K;
+  comparisons: { comparison: Comparison; kpis: K }[];
   /** In a card of its own, rather than under the period header. */
   standalone?: boolean;
 }) {
-  const tiles: {
-    label: string;
-    value: string;
-    pick: (k: Kpis) => number | null;
-    unit: "%" | "pts";
-  }[] = [
-    {
-      label: "Revenue",
-      value: formatAud(current.revenue),
-      pick: (k) => k.revenue,
-      unit: "%",
-    },
-    {
-      label: "Orders",
-      value: formatCount(current.orders),
-      pick: (k) => k.orders,
-      unit: "%",
-    },
-    {
-      label: "Average order",
-      value: current.averageOrder === null ? "—" : formatAud(Math.round(current.averageOrder)),
-      pick: (k) => k.averageOrder,
-      unit: "%",
-    },
-  ];
-  if (showReturning) {
-    tiles.push({
-      label: "Returning customers",
-      value: current.returning === null ? "—" : `${Math.round(current.returning * 100)}%`,
-      pick: (k) => k.returning,
-      unit: "pts",
-    });
-  }
-
   return (
     // Bleeds to the card's edges so the hairlines run edge to edge, like grouped rows.
     <dl
@@ -272,6 +248,51 @@ export function KpiRow({
   );
 }
 
+export function KpiRow({
+  current,
+  comparisons,
+  showReturning,
+  standalone = false,
+}: {
+  current: Kpis;
+  comparisons: { comparison: Comparison; kpis: Kpis }[];
+  showReturning: boolean;
+  /** In a card of its own, rather than under the period header. */
+  standalone?: boolean;
+}) {
+  const tiles: Tile<Kpis>[] = [
+    {
+      label: "Revenue",
+      value: formatAud(current.revenue),
+      pick: (k) => k.revenue,
+      unit: "%",
+    },
+    {
+      label: "Orders",
+      value: formatCount(current.orders),
+      pick: (k) => k.orders,
+      unit: "%",
+    },
+    {
+      label: "Average order",
+      value: current.averageOrder === null ? "—" : formatAud(Math.round(current.averageOrder)),
+      pick: (k) => k.averageOrder,
+      unit: "%",
+    },
+  ];
+  if (showReturning) {
+    tiles.push({
+      label: "Returning customers",
+      value: current.returning === null ? "—" : `${Math.round(current.returning * 100)}%`,
+      pick: (k) => k.returning,
+      unit: "pts",
+    });
+  }
+  return (
+    <TileRow tiles={tiles} current={current} comparisons={comparisons} standalone={standalone} />
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Revenue trend
 
@@ -281,7 +302,7 @@ const trendConfig = {
 } satisfies ChartConfig;
 
 /** Round axis steps people read at a glance (HIG › Charts): 1, 2, 2.5 or 5 × 10ⁿ. */
-function niceTicks(max: number, target = 4) {
+export function niceTicks(max: number, target = 4) {
   if (max <= 0) return [0];
   const raw = max / target;
   const power = 10 ** Math.floor(Math.log10(raw));
