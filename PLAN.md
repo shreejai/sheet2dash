@@ -117,7 +117,7 @@ Parsing changes: the header row is the first row that looks like a header (sever
 3. [x] Fitness kind: column roles, detection, confirm screen, parsing (sets, rep ranges, loads)
 4. [x] Fitness metrics + widgets + dashboard generator, widget editing
 5. [x] Fitness chat tools
-6. [ ] Privacy page update (workout data), README
+6. [x] Privacy page update (workout data), README
 
 Added along the way:
 - [x] Muscle recovery widget: ready/recovering per muscle group (2 or 3 day window), with a front-and-back body map (drawings from react-body-highlighter, MIT, back split into traps, infraspinatus, teres minor/major, lats, lower back) linked to the list on hover

@@ -27,13 +27,14 @@ export default function PrivacyPage() {
           ‹ Sheet2Dash
         </Link>
         <h1 className="large-title">Privacy</h1>
-        <p className="text-xs text-muted-foreground">Last updated 4 November 2026</p>
+        <p className="text-xs text-muted-foreground">Last updated 18 November 2026</p>
       </div>
 
       <div className="flex flex-col gap-6 rounded-2xl bg-card p-5 sm:p-6">
         <p className="text-sm leading-relaxed">
-          Sheet2Dash turns an orders spreadsheet in Google Sheets into a dashboard. This page
-          explains what it reads, what it keeps, and who else sees it.
+          Sheet2Dash turns a spreadsheet in Google Sheets, such as a shop&apos;s orders or your
+          workout log, into a dashboard. This page explains what it reads, what it keeps, and who
+          else sees it.
         </p>
 
         <Section title="What it reads from Google">
@@ -53,8 +54,13 @@ export default function PrivacyPage() {
             <li>
               Your account (name, email, sign-in details), held by our sign-in provider, Clerk.
             </li>
-            <li>The name and ID of the spreadsheet you connected, and which columns hold what.</li>
-            <li>Your dashboard layout and the email addresses you choose to share it with.</li>
+            <li>
+              The name and ID of each spreadsheet you connect, what kind of sheet it is (orders or
+              workouts), and which columns hold what.
+            </li>
+            <li>
+              Each dashboard&apos;s layout and the email addresses you choose to share it with.
+            </li>
             <li>A daily count of questions you ask in Ask (not the questions themselves).</li>
           </ul>
           <p>
@@ -64,15 +70,40 @@ export default function PrivacyPage() {
           </p>
         </Section>
 
+        <Section title="Workout logs">
+          <p>
+            A workout sheet can hold personal details about your health: the exercises you do,
+            sets, reps and loads, the muscles you train, notes, and your body weight if you add a
+            column for it. Sheet2Dash treats it like any other sheet:
+          </p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>
+              It&apos;s read from Google when you open the dashboard and held only in the
+              short-lived cache, never saved to a database. Training days, muscle recovery,
+              training balance and progress are worked out from it each time.
+            </li>
+            <li>
+              Muscle recovery is a rough guide based on when you last trained each muscle group.
+              It isn&apos;t medical advice, and Sheet2Dash doesn&apos;t diagnose or recommend
+              anything.
+            </li>
+            <li>
+              Anyone you share a workout dashboard with sees everything on it, including body
+              weight if that column is mapped.
+            </li>
+          </ul>
+        </Section>
+
         <Section title="Who else sees your data">
           <ul className="list-disc space-y-1 pl-5">
             <li>
               <strong>People you share with.</strong> Anyone whose email you add under Sharing can
-              view your dashboard and ask questions about it. You can remove them at any time.
+              view that dashboard and ask questions about it. Sharing is per sheet: they
+              can&apos;t see your other sheets. You can remove them at any time.
             </li>
             <li>
-              <strong>OpenAI, only when you use Ask.</strong> Your question and the orders needed to
-              answer it are sent to OpenAI to write the answer. OpenAI doesn&apos;t use data sent
+              <strong>OpenAI, only when you use Ask.</strong> Your question and the orders or workouts
+              needed to answer it are sent to OpenAI to write the answer. OpenAI doesn&apos;t use data sent
               through its API to train its models.
             </li>
             <li>
@@ -102,8 +133,8 @@ export default function PrivacyPage() {
 
         <Section title="Removing your data">
           <p>
-            <strong>Disconnect</strong> in the dashboard&apos;s settings removes the saved link to
-            your spreadsheet. You can also remove Sheet2Dash&apos;s access at any time from your{" "}
+            <strong>Disconnect</strong> in a dashboard&apos;s settings removes the saved link to that
+            spreadsheet, along with its layout and the people it was shared with. You can also remove Sheet2Dash&apos;s access at any time from your{" "}
             <a
               href="https://myaccount.google.com/permissions"
               className="text-tint underline-offset-4 hover:underline"
