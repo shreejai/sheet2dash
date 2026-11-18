@@ -39,23 +39,5 @@ async function ChatSection({ params }: Pick<PageProps<"/dashboard/[sheet]/chat">
     );
   }
 
-  if (access.connection.kind !== "orders") {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Ask is coming for workout sheets</CardTitle>
-          <CardDescription>
-            Questions about your training will work here soon. For now, see the dashboard.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button nativeButton={false} render={<Link href={`/dashboard/${sheetId}`} />}>
-            Go to the dashboard
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return <Chat sheetId={sheetId} dailyLimit={Number(process.env.CHAT_DAILY_LIMIT) || 30} />;
+  return <Chat sheetId={sheetId} kind={access.connection.kind} dailyLimit={Number(process.env.CHAT_DAILY_LIMIT) || 30} />;
 }

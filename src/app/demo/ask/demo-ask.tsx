@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Calculator } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,12 +15,15 @@ import { demoOrders } from "@/lib/demo-data";
 export function DemoAsk({ today }: { today: string }) {
   const { orders, unpriced } = useMemo(() => demoOrders(today), [today]);
   const [asked, setAsked] = useState<DemoQuestion[]>([]);
-  const bottom = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!asked.length) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    bottom.current?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "end" });
+    // The page's true bottom: the pinned question bar would cover the last answer's end.
+    window.scrollTo({
+      top: document.documentElement.scrollHeight,
+      behavior: reduce ? "auto" : "smooth",
+    });
   }, [asked]);
 
   const remaining = DEMO_QUESTIONS.filter((q) => !asked.includes(q));
@@ -69,7 +72,6 @@ export function DemoAsk({ today }: { today: string }) {
             ))}
           </div>
         )}
-        <div ref={bottom} />
       </div>
 
       <div className="sticky bottom-(--tabbar) -mx-4 -mb-[calc(var(--tabbar)+1.5rem)] flex flex-wrap items-center justify-between gap-2 bg-background/85 px-4 pt-2 pb-3 backdrop-blur-xl sm:pb-4">

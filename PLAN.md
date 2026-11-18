@@ -116,5 +116,5 @@ Parsing changes: the header row is the first row that looks like a header (sever
 2. [x] Smarter header-row detection (skip title rows and summary bands)
 3. [x] Fitness kind: column roles, detection, confirm screen, parsing (sets, rep ranges, loads)
 4. [x] Fitness metrics + widgets + dashboard generator, widget editing
-5. [ ] Fitness chat tools
+5. [x] Fitness chat tools
 6. [ ] Privacy page update (workout data), README

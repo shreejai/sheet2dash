@@ -3,25 +3,63 @@
 import { useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { ArrowUp, Calculator, ListChecks, Square } from "lucide-react";
+import { ArrowUp, Calculator, Dumbbell, ListChecks, Scale, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RichText } from "@/components/rich-text";
+import type { SheetKind } from "@/lib/sheet-kinds";
 
-const SUGGESTIONS = [
-  "How did last month compare with the month before?",
-  "What are my top 3 flavours this year?",
-  "Who are my most loyal customers?",
-  "What's due this weekend?",
-];
+// What Ask says and suggests depends on what the sheet holds.
+const COPY: Record<
+  SheetKind,
+  { intro: string; suggestions: string[]; placeholder: string; sent: string }
+> = {
+  orders: {
+    intro:
+      "Ask anything about your orders. Answers are worked out from your sheet, so the numbers match the dashboard.",
+    suggestions: [
+      "How did last month compare with the month before?",
+      "What are my top 3 flavours this year?",
+      "Who are my most loyal customers?",
+      "What's due this weekend?",
+    ],
+    placeholder: "Ask about revenue, flavours, customers…",
+    sent: "Your question and the matching orders",
+  },
+  fitness: {
+    intro:
+      "Ask anything about your training. Answers are worked out from your log, so the numbers match the dashboard.",
+    suggestions: [
+      "How has my load gone up on curls?",
+      "Which muscle group have I trained least this month?",
+      "What did I do on my last back day?",
+      "How many sets did I do this month compared with last month?",
+    ],
+    placeholder: "Ask about exercises, sets, progress…",
+    sent: "Your question and the matching workouts",
+  },
+};
 
 const MAX_CHARS = 1000;
 
 const TOOL_LABELS: Record<string, { label: string; Icon: typeof Calculator }> = {
   "tool-aggregate": { label: "Calculated from your sheet", Icon: Calculator },
   "tool-listOrders": { label: "Looked up orders", Icon: ListChecks },
+  "tool-summarise": { label: "Calculated from your log", Icon: Calculator },
+  "tool-exerciseHistory": { label: "Looked up an exercise", Icon: Dumbbell },
+  "tool-listSessions": { label: "Looked up sessions", Icon: ListChecks },
+  "tool-bodyWeight": { label: "Looked up body weight", Icon: Scale },
 };
 
-export function Chat({ sheetId, dailyLimit }: { sheetId: string; dailyLimit: number }) {
+export function Chat({
+  sheetId,
+  kind,
+  dailyLimit,
+}: {
+  sheetId: string;
+  kind: SheetKind;
+  dailyLimit: number;
+}) {
+  const copy = COPY[kind];
   // One conversation per sheet; switching sheets starts a fresh one.
   const [transport] = useState(() => new DefaultChatTransport({ body: { sheetId } }));
   const { messages, sendMessage, status, error, stop, regenerate } = useChat({
@@ -29,16 +67,36 @@ export function Chat({ sheetId, dailyLimit }: { sheetId: string; dailyLimit: num
     transport,
   });
   const [input, setInput] = useState("");
-  const bottom = useRef<HTMLDivElement>(null);
   const busy = status === "submitted" || status === "streaming";
 
+  // Follow the conversation while the reader is at the bottom; once they
+  // scroll up to reread, stop pulling them down. Sending always follows.
+  const following = useRef(true);
   useEffect(() => {
-    bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    const onScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+      following.current = scrollHeight - scrollTop - clientHeight < 120;
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  useEffect(() => {
+    if (!following.current) return;
+    // The page's true bottom, not the last message's: the question box is
+    // pinned over the bottom of the screen and would cover the answer's end.
+    window.scrollTo({
+      top: document.documentElement.scrollHeight,
+      behavior:
+        status === "streaming" || window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "instant"
+          : "smooth",
+    });
   }, [messages, status]);
 
   function send(text: string) {
     const question = text.trim();
     if (!question || busy) return;
+    following.current = true;
     sendMessage({ text: question.slice(0, MAX_CHARS) });
     setInput("");
   }
@@ -57,12 +115,11 @@ export function Chat({ sheetId, dailyLimit }: { sheetId: string; dailyLimit: num
             <div className="flex flex-col gap-1">
               <h1 className="large-title">Ask</h1>
               <p className="text-sm text-muted-foreground">
-                Ask anything about your orders. Answers are worked out from your sheet, so the
-                numbers match the dashboard.
+                {copy.intro}
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:grid sm:grid-cols-2">
-              {SUGGESTIONS.map((s) => (
+              {copy.suggestions.map((s) => (
                 <button
                   key={s}
                   type="button"
@@ -126,7 +183,6 @@ export function Chat({ sheetId, dailyLimit }: { sheetId: string; dailyLimit: num
             </Button>
           </div>
         )}
-        <div ref={bottom} />
       </div>
 
       <form
@@ -148,7 +204,7 @@ export function Chat({ sheetId, dailyLimit }: { sheetId: string; dailyLimit: num
             }}
             rows={1}
             maxLength={MAX_CHARS}
-            placeholder="Ask about revenue, flavours, customers…"
+            placeholder={copy.placeholder}
             aria-label="Your question"
             className="field-sizing-content max-h-40 min-h-6 flex-1 resize-none self-center bg-transparent py-1 text-base outline-none placeholder:text-muted-foreground sm:text-sm"
           />
@@ -169,7 +225,7 @@ export function Chat({ sheetId, dailyLimit }: { sheetId: string; dailyLimit: num
           )}
         </div>
         <p className="px-1 text-xs text-muted-foreground">
-          Your question and the matching orders are sent to OpenAI to write the answer. Up to{" "}
+          {copy.sent} are sent to OpenAI to write the answer. Up to{" "}
           {dailyLimit} questions a day.
         </p>
       </form>
