@@ -124,6 +124,23 @@ export const WIDGETS = {
       },
     },
   },
+  recovery: {
+    kind: "fitness",
+    unscoped: true,
+    title: "Muscle recovery",
+    blurb: "Which muscle groups are ready to train today",
+    needs: ["muscle"],
+    settings: {
+      window: {
+        label: "Recovering for",
+        options: [
+          { value: 2, label: "2 days" },
+          { value: 3, label: "3 days" },
+        ],
+        default: 2,
+      },
+    },
+  },
   fitnessKpis: {
     kind: "fitness",
     title: "Key numbers",

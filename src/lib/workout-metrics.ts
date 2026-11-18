@@ -11,7 +11,13 @@ import {
   startOfWeek,
   type DateRange,
 } from "./dates";
-import type { BodyWeightEntry, Load, MuscleGroup, WorkoutEntry } from "./workouts";
+import {
+  MUSCLE_GROUPS,
+  type BodyWeightEntry,
+  type Load,
+  type MuscleGroup,
+  type WorkoutEntry,
+} from "./workouts";
 
 export const entriesIn = (entries: WorkoutEntry[], range: DateRange) =>
   entries.filter((e) => inRange(e.date, range));
@@ -258,4 +264,60 @@ export function bodyWeightTrend(readings: BodyWeightEntry[], range: DateRange): 
     latest,
     change: points.length > 1 ? Math.round((latest! - points[0].kg) * 10) / 10 : null,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Muscle recovery
+
+export type RecoveryRow = {
+  group: MuscleGroup;
+  status: "ready" | "recovering" | "untrained";
+  /** The last day the group was trained, on or before today. */
+  lastTrained: string | null;
+  daysAgo: number | null;
+  /** Sets that day for the group, and the exercises that worked it. */
+  sets: number;
+  exercises: string[];
+  /** First day it counts as ready again, while recovering. */
+  readyOn: string | null;
+};
+
+/**
+ * Each muscle group's state today. A group trained within the last
+ * `windowDays` calendar days (today counts as day 0) is recovering; trained
+ * earlier, it's ready. Sheets hold dates, not times, so a 2-day window means
+ * "trained today or yesterday". Ready groups come first (longest rested
+ * first), then recovering (soonest ready first), then groups never logged.
+ */
+export function muscleRecovery(
+  entries: WorkoutEntry[],
+  today: string,
+  windowDays: number,
+): RecoveryRow[] {
+  const rows = MUSCLE_GROUPS.map((group): RecoveryRow => {
+    const worked = entries.filter((e) => e.date <= today && e.muscleGroups.includes(group));
+    const last = worked.reduce<string | null>((d, e) => (!d || e.date > d ? e.date : d), null);
+    if (!last) {
+      return { group, status: "untrained", lastTrained: null, daysAgo: null, sets: 0, exercises: [], readyOn: null };
+    }
+    const thatDay = worked.filter((e) => e.date === last);
+    const daysAgo = daysBetween(last, today);
+    const recovering = daysAgo < windowDays;
+    return {
+      group,
+      status: recovering ? "recovering" : "ready",
+      lastTrained: last,
+      daysAgo,
+      sets: sumSets(thatDay),
+      exercises: [...new Set(thatDay.map((e) => e.exercise))],
+      readyOn: recovering ? addDays(last, windowDays) : null,
+    };
+  });
+  const rank = { ready: 0, recovering: 1, untrained: 2 } as const;
+  return rows.sort(
+    (a, b) =>
+      rank[a.status] - rank[b.status] ||
+      (a.status === "ready" ? b.daysAgo! - a.daysAgo! : 0) ||
+      (a.status === "recovering" ? a.readyOn!.localeCompare(b.readyOn!) : 0),
+  );
 }

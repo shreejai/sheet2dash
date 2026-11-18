@@ -13,6 +13,7 @@ import {
   computeFitnessKpis,
   entriesIn,
   exerciseProgress,
+  muscleRecovery,
   recentSessions,
   setsByMuscle,
   trainingCalendar,
@@ -26,12 +27,19 @@ import {
   MuscleChart,
   ProgressWidget,
   RecentSessions,
+  RecoveryWidget,
   TrainingCalendar,
   VolumeChart,
 } from "./fitness-widgets";
 import { PeriodCard, usePeriod } from "./period-card";
 
-const FULL_WIDTH = new Set<WidgetType>(["trainingDays", "fitnessKpis", "volume", "progress"]);
+const FULL_WIDTH = new Set<WidgetType>([
+  "trainingDays",
+  "recovery",
+  "fitnessKpis",
+  "volume",
+  "progress",
+]);
 
 /** The workout dashboard: the same layout rules as the orders one, with workout widgets. */
 export function FitnessView({
@@ -87,6 +95,12 @@ export function FitnessView({
     switch (widget.type) {
       case "trainingDays":
         return <TrainingCalendar weeks={trainingCalendar(entries, today, setting<number>(widget, "weeks"))} />;
+      case "recovery": {
+        const windowDays = setting<number>(widget, "window");
+        return (
+          <RecoveryWidget rows={muscleRecovery(entries, today, windowDays)} windowDays={windowDays} />
+        );
+      }
       case "fitnessKpis":
         return (
           <FitnessKpiRow

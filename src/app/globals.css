@@ -45,6 +45,7 @@
   --color-sidebar: var(--sidebar);
   --color-chart-bad: var(--chart-bad);
   --color-chart-good: var(--chart-good);
+  --color-recovering: var(--recovering-text);
   --color-chart-grid: var(--chart-grid);
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
@@ -114,6 +115,15 @@
   --chart-grid: #e1e0d9;
   --chart-good: #006300;
   --chart-bad: #d03b3b;
+  /* Body map (muscle recovery). Ready/recovering checked for colour-blind separation;
+     recovering is also striped, and the widget lists every status in words. */
+  --body-base: #cdd9ea;
+  --body-outline: #7189ab;
+  --body-ready: #28a745;
+  --body-recovering: #f2c200;
+  --body-stripe: #8a6d00;
+  /* "Recovering" label: the map's yellow, deepened in light mode to 5.4:1 on the card */
+  --recovering-text: #8a6400;
   --radius: 0.625rem;
   --sidebar: #ffffff;
   --sidebar-foreground: #000000;
@@ -154,6 +164,12 @@
   --chart-grid: #2c2c2e;
   --chart-good: #0ca30c;
   --chart-bad: #e66767;
+  --body-base: #4c5672;
+  --body-outline: #8d9bbb;
+  --body-ready: #28a745;
+  --body-recovering: #ffd60a;
+  --body-stripe: #8a6d00;
+  --recovering-text: #ffd60a; /* the map's yellow, 12:1 on the card */
   --sidebar: #1c1c1e;
   --sidebar-foreground: #ffffff;
   --sidebar-primary: #0a84ff;

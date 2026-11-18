@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, CircleCheck, CircleDashed, Hourglass } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -22,12 +22,13 @@ import {
   type ExerciseProgress,
   type FitnessKpis,
   type MuscleRow,
+  type RecoveryRow,
   type Session,
   type TrainingWeek,
   type Volume,
 } from "@/lib/workout-metrics";
 import type { Comparison } from "@/lib/metrics";
-import { formatLoad, formatReps, type Load } from "@/lib/workouts";
+import { formatLoad, formatReps, type Load, type MuscleGroup } from "@/lib/workouts";
 import {
   Empty,
   TableView,
@@ -39,6 +40,7 @@ import {
   plural,
   type Tile,
 } from "./widgets";
+import { BodyMap } from "./body-map";
 
 const NO_WORKOUTS = "No workouts in this period.";
 const oneDecimal = (n: number) => (Math.round(n * 10) / 10).toLocaleString("en-AU");
@@ -264,6 +266,96 @@ export function TrainingCalendar({ weeks }: { weeks: TrainingWeek[] }) {
             formatCount(w.days.reduce((n, d) => n + d.sets, 0)),
           ])}
       />
+    </WidgetCard>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Muscle recovery
+
+const ago = (days: number) => (days === 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago`);
+
+const STATUS = {
+  ready: { word: "Ready", Icon: CircleCheck, className: "text-chart-good" },
+  recovering: { word: "Recovering", Icon: Hourglass, className: "text-recovering" },
+  untrained: { word: "Not logged", Icon: CircleDashed, className: "text-muted-foreground" },
+} as const;
+
+/**
+ * Which muscle groups were trained in the last few days, and which are
+ * ready. Status is an icon and a word, never colour alone.
+ */
+export function RecoveryWidget({ rows, windowDays }: { rows: RecoveryRow[]; windowDays: number }) {
+  const logged = rows.filter((r) => r.status !== "untrained");
+  const ready = logged.filter((r) => r.status === "ready");
+  const untrained = rows.filter((r) => r.status === "untrained");
+  const [active, setActive] = useState<MuscleGroup | null>(null);
+
+  return (
+    <WidgetCard
+      label="Muscle recovery · today"
+      value={logged.length ? `${ready.length} of ${logged.length} ready` : undefined}
+      detail={
+        logged.length
+          ? ready.length
+            ? `Ready to train: ${ready.map((r) => r.group).join(", ")}`
+            : "Everything you've logged was trained in the last few days"
+          : undefined
+      }
+      footnote={`Trained today${windowDays > 2 ? `, yesterday or the day before` : " or yesterday"} counts as recovering. It can't see how hard a session was, and an exercise that works two groups counts for both: a guide, not medical advice.`}
+    >
+      {logged.length ? (
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-8">
+          <div className="shrink-0 lg:w-72">
+            <BodyMap rows={rows} active={active} setActive={setActive} />
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <ul className="grid gap-x-6 sm:grid-cols-2" onMouseLeave={() => setActive(null)}>
+            {logged.map((r) => {
+              const { word, Icon, className } = STATUS[r.status];
+              return (
+                <li
+                  key={r.group}
+                  onMouseEnter={() => setActive(r.group)}
+                  onClick={() => setActive(active === r.group ? null : r.group)}
+                  className={`-mx-2 flex cursor-default items-start justify-between gap-3 rounded-lg px-2 py-2.5 shadow-[0_-0.5px_0_var(--separator)] motion-safe:transition-colors ${
+                    active === r.group ? "bg-fill" : ""
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{r.group}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {`Trained ${ago(r.daysAgo!)}`}
+                      {r.sets > 0 && ` · ${plural(r.sets, "set")}`}
+                      {r.readyOn &&
+                        ` · ready ${
+                          windowDays - r.daysAgo! === 1
+                            ? "tomorrow"
+                            : WEEKDAYS[(new Date(`${r.readyOn}T00:00:00Z`).getUTCDay() + 6) % 7]
+                        }`}
+                    </p>
+                    {r.exercises.length > 0 && (
+                      <p className="truncate text-xs text-muted-foreground">{r.exercises.join(", ")}</p>
+                    )}
+                  </div>
+                  <span className={`flex shrink-0 items-center gap-1 text-sm font-medium ${className}`}>
+                    <Icon className="size-4" aria-hidden />
+                    {word}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          {untrained.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Not in your log yet: {untrained.map((r) => r.group).join(", ")}
+            </p>
+          )}
+          </div>
+        </div>
+      ) : (
+        <Empty>No muscle groups recognised in your target-muscle column yet.</Empty>
+      )}
     </WidgetCard>
   );
 }

@@ -63,7 +63,9 @@ export function EditDashboard({
 
   const shown = new Set(draft.map((w) => w.type));
   const hidden = widgetTypesFor(kind).filter((t) => !shown.has(t));
-  const unscoped = widgetTypesFor(kind).find((t) => !isScoped(t));
+  const unscoped = widgetTypesFor(kind)
+    .filter((t) => !isScoped(t))
+    .map((t) => WIDGETS[t].title);
 
   return (
     <>
@@ -121,7 +123,8 @@ export function EditDashboard({
             )}
             <p className="px-4 text-xs text-muted-foreground">
               Drag ≡ to reorder.
-              {unscoped && ` The date range applies to everything except ${WIDGETS[unscoped].title}.`}
+              {unscoped.length > 0 &&
+                ` The date range applies to everything except ${unscoped.join(" and ")}.`}
             </p>
           </section>
 
