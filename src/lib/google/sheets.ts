@@ -2,6 +2,8 @@ import "server-only";
 
 // Read-only access to the Google Sheets API. The app never writes to the sheet.
 
+import { findHeaderRow } from "./header-row";
+
 const API = "https://sheets.googleapis.com/v4/spreadsheets";
 
 /** A raw cell value. Dates arrive as serial numbers (days since 30/12/1899). */
@@ -101,7 +103,7 @@ export async function fetchMergedSheet(spreadsheetId: string, token: string): Pr
 
   const parsed = tabs.map((tab, i) => {
     const values = valueRanges[i]?.values ?? [];
-    const headerIndex = values.findIndex((row) => row.some((v) => !isBlank(v)));
+    const headerIndex = findHeaderRow(values);
     if (headerIndex === -1) return { tab, headers: [] as string[], rows: [] as CellValue[][] };
     const headers = values[headerIndex].map((h) => String(h ?? "").trim());
     while (headers.length && !headers.at(-1)) headers.pop();

@@ -113,7 +113,7 @@ Parsing changes: the header row is the first row that looks like a header (sever
 ## Build order
 
 1. [x] Several sheets per account: schema migration + backfill, sheet-scoped routes, switcher, per-sheet cache and sharing. Cake dashboard behaves exactly as before
-2. [ ] Smarter header-row detection (skip title rows and summary bands)
+2. [x] Smarter header-row detection (skip title rows and summary bands)
 3. [ ] Fitness kind: column roles, detection, confirm screen, parsing (sets, rep ranges, loads)
 4. [ ] Fitness metrics + widgets + dashboard generator, widget editing
 5. [ ] Fitness chat tools
