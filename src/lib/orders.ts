@@ -80,7 +80,7 @@ const DAY_MS = 86_400_000;
 
 const isoFromUtc = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
-/** Sheets serial number or DD/MM/YYYY text → YYYY-MM-DD. */
+/** Sheets serial number, DD/MM/YYYY or YYYY-MM-DD text → YYYY-MM-DD. */
 export function parseDate(v: CellValue): string | null {
   if (typeof v === "number") {
     // Plausible range: 1950–2100, so stray amounts aren't read as dates.
@@ -88,7 +88,11 @@ export function parseDate(v: CellValue): string | null {
     return isoFromUtc(SHEETS_EPOCH + Math.floor(v) * DAY_MS);
   }
   if (typeof v !== "string") return null;
-  const m = v.trim().match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})$/);
+  const s = v.trim();
+  const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  const m = iso
+    ? [s, iso[3], iso[2], iso[1]]
+    : s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{2}|\d{4})$/);
   if (!m) return null;
   const [day, month] = [Number(m[1]), Number(m[2])];
   const year = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);

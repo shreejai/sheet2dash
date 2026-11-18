@@ -12,7 +12,16 @@ import { Button } from "@/components/ui/button";
 import { formatCount } from "@/lib/format";
 import { getSheet } from "@/lib/google/cached-sheet";
 import type { MergedSheet } from "@/lib/google/sheets";
-import { ROLES, ROLE_KEYS, detectColumns, isCompleteMapping, parseOrders } from "@/lib/orders";
+import { parseOrders } from "@/lib/orders";
+import {
+  KINDS,
+  SHEET_KINDS,
+  detectKind,
+  isSheetKind,
+  roleKeys,
+  type SheetKind,
+} from "@/lib/sheet-kinds";
+import { parseWorkouts } from "@/lib/workouts";
 import { disconnectSheet, saveDashboard } from "../actions";
 import { ColumnForm } from "../column-form";
 import { ConnectSheetButton } from "../connect-sheet-button";
@@ -71,9 +80,9 @@ async function SheetSection({ params, searchParams }: Props) {
   }
 
   const { sheet, fetchedAt } = result;
-  const { columns } = await searchParams;
+  const { columns, kind: kindParam } = await searchParams;
   const saved = connection.columnMapping;
-  const confirmed = saved && isCompleteMapping(saved, sheet.headers);
+  const confirmed = Boolean(saved && KINDS[connection.kind].isComplete(saved, sheet.headers));
 
   if (!confirmed && !isOwner) {
     return (
@@ -90,23 +99,38 @@ async function SheetSection({ params, searchParams }: Props) {
   }
 
   if (!confirmed || (isOwner && columns === "edit")) {
+    // The kind shown: the owner's pick on this screen, else the saved one, else a guess.
+    const kind = isSheetKind(kindParam)
+      ? kindParam
+      : confirmed
+        ? connection.kind
+        : detectKind(sheet.headers);
+    const keepSaved = confirmed && kind === connection.kind;
     return (
       <div className="flex flex-col gap-4">
         <Card>
           <CardHeader>
             <SheetTitle href={sheetLink} title={sheet.title} />
             <CardDescription>
-              Check which column holds what. The guesses come from your column names; change any
-              that are wrong.
+              Check what this sheet holds and which column holds what. The guesses come from your
+              column names; change any that are wrong.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-6">
-            <ColumnForm
+            <KindChoice
               sheetId={sheetId}
+              current={kind}
+              editing={confirmed}
+              savedKind={connection.kind}
+            />
+            <ColumnForm
+              key={kind}
+              sheetId={sheetId}
+              kind={kind}
               headers={sheet.headers}
               rows={sheet.rows}
-              initial={confirmed ? saved : detectColumns(sheet.headers)}
-              editing={Boolean(confirmed)}
+              initial={keepSaved ? saved! : KINDS[kind].detect(sheet.headers)}
+              editing={confirmed}
             />
           </CardContent>
         </Card>
@@ -115,11 +139,113 @@ async function SheetSection({ params, searchParams }: Props) {
     );
   }
 
+  const db = getDb();
+  const viewers = isOwner
+    ? (
+        await db
+          .select({ email: dashboardViewers.email })
+          .from(dashboardViewers)
+          .where(eq(dashboardViewers.connectionId, sheetId))
+          .orderBy(asc(dashboardViewers.createdAt))
+      ).map((v) => v.email)
+    : [];
+  const sharedBy = isOwner ? null : await ownerDisplayName(userId);
+
+  // Settings as grouped sections, like iOS Settings: a heading, a card, a footnote.
+  const settings = isOwner && (
+    <section aria-labelledby="settings-heading" className="flex flex-col gap-3 pt-4">
+      <h2 id="settings-heading" className="title-2 px-1">
+        Settings
+      </h2>
+      <Card size="sm">
+        <CardHeader className="flex items-center justify-between gap-2">
+          <CardTitle>Columns</CardTitle>
+          <Button
+            size="sm"
+            variant="ghost"
+            nativeButton={false}
+            render={<Link href={`/dashboard/${sheetId}?columns=edit`} />}
+          >
+            Edit
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <dl className="divide-y divide-separator text-sm">
+            <div className="flex items-baseline justify-between gap-4 py-2.5">
+              <dt>Sheet type</dt>
+              <dd className="text-right text-muted-foreground">{KINDS[connection.kind].label}</dd>
+            </div>
+            {roleKeys(connection.kind).map((role) => (
+              <div key={role} className="flex items-baseline justify-between gap-4 py-2.5">
+                <dt>{KINDS[connection.kind].roles[role].label}</dt>
+                <dd className="min-w-0 truncate text-right text-muted-foreground">
+                  {saved![role] ?? "Not used"}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </CardContent>
+      </Card>
+      <Sharing sheetId={sheetId} viewers={viewers} />
+      <SheetDetails sheet={sheet} />
+      <SheetActions sheetId={sheetId} />
+    </section>
+  );
+
+  const header = (counts: string) => (
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <h1 className="title-2">
+        <a href={sheetLink} target="_blank" rel="noreferrer" className="underline-offset-4 hover:underline">
+          {sheet.title}
+        </a>
+      </h1>
+      <p className="text-xs text-muted-foreground">{counts}</p>
+      {sharedBy && (
+        <p className="text-xs text-muted-foreground">Shared with you by {sharedBy} · view only</p>
+      )}
+    </div>
+  );
+
+  if (connection.kind === "fitness") {
+    const { entries, bodyWeights, skipped } = parseWorkouts(sheet.headers, sheet.rows, saved!);
+    const sessions = new Set(entries.map((e) => e.date)).size;
+    const sets = entries.reduce((n, e) => n + (e.sets ?? 0), 0);
+    const skippedTotal = skipped.noDate + skipped.noExercise;
+    return (
+      <div className="flex flex-col gap-6">
+        <LiveRegion
+          sheetId={sheetId}
+          fetchedAt={fetchedAt}
+          header={header(
+            `${formatCount(sessions)} sessions · ${formatCount(entries.length)} exercises` +
+              (skippedTotal > 0
+                ? ` · ${formatCount(skippedTotal)} rows not counted (no date or exercise)`
+                : ""),
+          )}
+        >
+          {/* Placeholder until the workout widgets land (PLAN.md v2, step 4). */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Your workout dashboard is on its way</CardTitle>
+              <CardDescription>
+                Read from your sheet so far: {formatCount(sessions)} sessions,{" "}
+                {formatCount(entries.length)} exercises, {formatCount(sets)} sets
+                {bodyWeights.length > 0 &&
+                  `, ${formatCount(bodyWeights.length)} body-weight readings`}
+                .
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </LiveRegion>
+        {settings}
+      </div>
+    );
+  }
+
   const { orders, unpriced, skipped } = parseOrders(sheet.headers, sheet.rows, saved!);
   const skippedTotal = skipped.noDate + skipped.noAmount;
 
   // Widget list: saved when columns were confirmed; generated for older accounts.
-  const db = getDb();
   const [stored] = await db
     .select()
     .from(dashboards)
@@ -139,16 +265,6 @@ async function SheetSection({ params, searchParams }: Props) {
   // Never show a widget whose column has since been un-mapped.
   spec = fitSpec(spec, saved!);
 
-  const viewers = isOwner
-    ? (
-        await db
-          .select({ email: dashboardViewers.email })
-          .from(dashboardViewers)
-          .where(eq(dashboardViewers.connectionId, sheetId))
-          .orderBy(asc(dashboardViewers.createdAt))
-      ).map((v) => v.email)
-    : [];
-
   return (
     <div className="flex flex-col gap-6">
       <LiveRegion
@@ -163,70 +279,61 @@ async function SheetSection({ params, searchParams }: Props) {
             />
           )
         }
-        header={
-          <div className="flex min-w-0 flex-col gap-0.5">
-            <h1 className="title-2">
-              <a
-                href={sheetLink}
-                target="_blank"
-                rel="noreferrer"
-                className="underline-offset-4 hover:underline"
-              >
-                {sheet.title}
-              </a>
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              {formatCount(orders.length)} orders
-              {skippedTotal > 0 &&
-                ` · ${formatCount(skippedTotal)} rows not counted (no due date or price)`}
-            </p>
-            {!isOwner && (
-              <p className="text-xs text-muted-foreground">
-                Shared with you by {await ownerDisplayName(userId)} · view only
-              </p>
-            )}
-          </div>
-        }
+        header={header(
+          `${formatCount(orders.length)} orders` +
+            (skippedTotal > 0
+              ? ` · ${formatCount(skippedTotal)} rows not counted (no due date or price)`
+              : ""),
+        )}
       >
         <DashboardView orders={orders} unpriced={unpriced} today={todayIso()} spec={spec} />
       </LiveRegion>
+      {settings}
+    </div>
+  );
+}
 
-      {/* Settings as grouped sections, like iOS Settings: a heading, a card, a footnote. */}
-      {isOwner && (
-        <section aria-labelledby="settings-heading" className="flex flex-col gap-3 pt-4">
-          <h2 id="settings-heading" className="title-2 px-1">
-            Settings
-          </h2>
-          <Card size="sm">
-            <CardHeader className="flex items-center justify-between gap-2">
-              <CardTitle>Columns</CardTitle>
-              <Button
-                size="sm"
-                variant="ghost"
-                nativeButton={false}
-                render={<Link href={`/dashboard/${sheetId}?columns=edit`} />}
-              >
-                Edit
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <dl className="divide-y divide-separator text-sm">
-                {ROLE_KEYS.map((role) => (
-                  <div key={role} className="flex items-baseline justify-between gap-4 py-2.5">
-                    <dt>{ROLES[role].label}</dt>
-                    <dd className="min-w-0 truncate text-right text-muted-foreground">
-                      {saved![role] ?? "Not used"}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </CardContent>
-          </Card>
-          <Sharing sheetId={sheetId} viewers={viewers} />
-          <SheetDetails sheet={sheet} />
-          <SheetActions sheetId={sheetId} />
-        </section>
-      )}
+/** What the sheet holds. Switching re-guesses the columns for that kind. */
+function KindChoice({
+  sheetId,
+  current,
+  editing,
+  savedKind,
+}: {
+  sheetId: string;
+  current: SheetKind;
+  editing: boolean;
+  savedKind: SheetKind;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <p id="kind-label" className="text-sm font-medium">
+        This sheet is a log of…
+      </p>
+      <nav aria-labelledby="kind-label" className="flex flex-wrap gap-2">
+        {SHEET_KINDS.map((k) => (
+          <Link
+            key={k}
+            replace
+            scroll={false}
+            href={`/dashboard/${sheetId}?columns=edit&kind=${k}`}
+            aria-current={k === current ? "true" : undefined}
+            className={
+              k === current
+                ? "pressable rounded-full bg-tint px-3.5 py-1.5 text-sm font-semibold text-white"
+                : "pressable rounded-full bg-fill px-3.5 py-1.5 text-sm font-medium"
+            }
+          >
+            {KINDS[k].label}
+          </Link>
+        ))}
+      </nav>
+      <p className="text-xs text-muted-foreground">
+        {KINDS[current].description}.
+        {editing &&
+          current !== savedKind &&
+          " Saving as a different type replaces this dashboard's layout with that type's default."}
+      </p>
     </div>
   );
 }

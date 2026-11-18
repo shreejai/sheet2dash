@@ -9,14 +9,10 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
-import type { ColumnMapping } from "../lib/orders";
+import type { SheetKind, SheetMapping } from "../lib/sheet-kinds";
 
 // Rows are keyed by the Clerk user id. A user can connect several sheets;
 // each sheet has its own kind, columns, dashboard layout and sharing list.
-
-/** What a sheet holds, which decides its columns, dashboard and chat. */
-export const SHEET_KINDS = ["orders"] as const;
-export type SheetKind = (typeof SHEET_KINDS)[number];
 
 /** A Google spreadsheet a user has connected. */
 export const sheetConnections = pgTable(
@@ -26,9 +22,10 @@ export const sheetConnections = pgTable(
     userId: text("user_id").notNull(),
     spreadsheetId: text("spreadsheet_id").notNull(),
     spreadsheetName: text("spreadsheet_name").notNull(),
+    /** What the sheet holds (see lib/sheet-kinds); decides its columns, dashboard and chat. */
     kind: text("kind").$type<SheetKind>().notNull().default("orders"),
-    /** Confirmed column roles, e.g. { dueDate: "due date", amount: "charged" }. Null until confirmed. */
-    columnMapping: jsonb("column_mapping").$type<ColumnMapping>(),
+    /** Confirmed column roles for its kind, e.g. { dueDate: "due date", amount: "charged" }. Null until confirmed. */
+    columnMapping: jsonb("column_mapping").$type<SheetMapping>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },

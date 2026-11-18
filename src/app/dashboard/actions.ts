@@ -10,7 +10,7 @@ import { getOwnedSheet, getSheetAccess } from "@/lib/access";
 import { fitSpec, generateSpec, readSpec } from "@/lib/dashboard-spec";
 import { getSheet, sheetTag } from "@/lib/google/cached-sheet";
 import { GoogleApiError, getSpreadsheetMeta } from "@/lib/google/sheets";
-import { ROLE_KEYS, isCompleteMapping, type ColumnMapping } from "@/lib/orders";
+import { KINDS, isSheetKind, roleKeys, type SheetKind, type SheetMapping } from "@/lib/sheet-kinds";
 import { getGoogleToken, type GoogleTokenResult } from "@/lib/google/token";
 
 // Actions that act on one sheet take its id first, so pages can bind it:
@@ -118,10 +118,12 @@ export async function refreshSheet(sheetId: string) {
 
 export async function saveColumnMapping(
   sheetId: string,
-  input: ColumnMapping,
+  kind: SheetKind,
+  input: SheetMapping,
 ): Promise<{ ok: false; error: string } | undefined> {
   const access = await getOwnedSheet(sheetId);
   if (!access) return { ok: false, error: "Connect a sheet first." };
+  if (!isSheetKind(kind)) return { ok: false, error: "Choose what this sheet holds." };
   const { connection, userId } = access;
 
   // Check the chosen columns against the sheet's real headers, not the browser's copy.
@@ -129,33 +131,45 @@ export async function saveColumnMapping(
   if (!result.ok) return { ok: false, error: result.problem };
   const { headers } = result.sheet;
 
-  const mapping: ColumnMapping = {};
-  for (const role of ROLE_KEYS) {
+  const { roles, isComplete } = KINDS[kind];
+  const mapping: SheetMapping = {};
+  for (const role of roleKeys(kind)) {
     const value = input?.[role];
     if (typeof value === "string" && value) mapping[role] = value;
   }
-  if (!isCompleteMapping(mapping, headers)) {
-    return { ok: false, error: "Choose a column for the due date and the amount." };
+  if (!isComplete(mapping, headers)) {
+    const required = roleKeys(kind).filter((r) => roles[r].required);
+    return {
+      ok: false,
+      error: `Choose a column for the ${required.map((r) => roles[r].label.toLowerCase()).join(" and ")}.`,
+    };
   }
 
   const db = getDb();
   await db
     .update(sheetConnections)
-    .set({ columnMapping: mapping, updatedAt: new Date() })
+    .set({ kind, columnMapping: mapping, updatedAt: new Date() })
     .where(eq(sheetConnections.id, connection.id));
 
-  // Keep the owner's layout, minus widgets whose column is no longer mapped;
-  // a first-time setup gets the default layout.
+  // A layout belongs to one kind: changing kind starts from that kind's default.
+  const sameKind = connection.kind === kind;
   const [stored] = await db
     .select({ spec: dashboards.spec })
     .from(dashboards)
     .where(eq(dashboards.connectionId, connection.id));
-  const existing = readSpec(stored?.spec);
-  const spec = existing ? fitSpec(existing, mapping) : generateSpec(mapping);
-  await db
-    .insert(dashboards)
-    .values({ connectionId: connection.id, spec })
-    .onConflictDoUpdate({ target: dashboards.connectionId, set: { spec, updatedAt: new Date() } });
+
+  if (kind === "orders") {
+    // Keep the owner's layout, minus widgets whose column is no longer mapped;
+    // a first-time setup gets the default layout.
+    const existing = sameKind ? readSpec(stored?.spec) : null;
+    const spec = existing ? fitSpec(existing, mapping) : generateSpec(mapping);
+    await db
+      .insert(dashboards)
+      .values({ connectionId: connection.id, spec })
+      .onConflictDoUpdate({ target: dashboards.connectionId, set: { spec, updatedAt: new Date() } });
+  } else if (!sameKind && stored) {
+    await db.delete(dashboards).where(eq(dashboards.connectionId, connection.id));
+  }
 
   redirect(`/dashboard/${connection.id}`);
 }
@@ -172,6 +186,9 @@ export async function saveDashboard(
   const access = await getOwnedSheet(sheetId);
   const mapping = access?.connection.columnMapping;
   if (!access || !mapping) return { ok: false, error: "Set up your sheet first." };
+  if (access.connection.kind !== "orders") {
+    return { ok: false, error: "This sheet's dashboard can't be edited yet." };
+  }
 
   const spec = readSpec(input);
   if (!spec) return { ok: false, error: "That layout couldn't be saved. Try again." };

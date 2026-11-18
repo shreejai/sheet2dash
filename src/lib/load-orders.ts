@@ -15,6 +15,7 @@ export type LoadedOrders =
 
 /** A connected orders sheet, parsed with its confirmed columns (via the ~30s sheet cache). */
 export async function loadOrders(connection: Connection): Promise<LoadedOrders> {
+  if (connection.kind !== "orders") return { ok: false, problem: "This isn't an orders sheet." };
   const result = await getSheet(connection.userId, connection.spreadsheetId);
   if (!result.ok) return { ok: false, problem: result.problem };
 

@@ -2,7 +2,8 @@ import "server-only";
 import { auth, createClerkClient, currentUser } from "@clerk/nextjs/server";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
-import { dashboardViewers, sheetConnections, type SheetKind } from "@/db/schema";
+import { dashboardViewers, sheetConnections } from "@/db/schema";
+import type { SheetKind } from "./sheet-kinds";
 
 const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
 
