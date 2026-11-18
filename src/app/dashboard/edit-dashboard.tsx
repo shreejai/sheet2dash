@@ -16,7 +16,6 @@ import {
   type Widget,
 } from "@/lib/dashboard-spec";
 import { ROLES, type ColumnMapping } from "@/lib/orders";
-import { saveDashboard } from "./actions";
 
 /*
  * Edit the dashboard the way iOS edits Control Center or Health favourites:
@@ -30,12 +29,12 @@ type Drag = { index: number; startY: number; dy: number; rects: DOMRect[]; targe
 export function EditDashboard({
   spec,
   mapping,
-  onSave = saveDashboard,
+  onSave,
 }: {
   spec: DashboardSpec;
   mapping: ColumnMapping;
-  /** Where Done saves to: the database by default; the demo keeps it in the page. */
-  onSave?: (spec: DashboardSpec) => Promise<{ ok: true } | { ok: false; error: string }>;
+  /** Where Done saves to: the sheet's saved layout, or (in the demo) the page. */
+  onSave: (spec: DashboardSpec) => Promise<{ ok: true } | { ok: false; error: string }>;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [draft, setDraft] = useState<Widget[]>(spec.widgets);

@@ -63,3 +63,58 @@ Next.js (App Router) · TypeScript · Tailwind · shadcn/ui · Clerk · Google P
 - Profit widgets (expenses / net profit)
 - Writes back to the sheet (e.g. mark order done)
 - Multi-business support
+
+---
+
+# v2 plan: several sheets per account and a Fitness dashboard
+
+Second use case: the owner's workout tracker ("Reacher Revamp — CBVT Workout Progress Tracker"), kept under the same Google account as the cake sheet.
+
+## Decisions
+
+| Topic | Decision |
+|---|---|
+| Sheets per account | Many. Each connected sheet has its own **kind**, column mapping, dashboard layout and sharing list |
+| Kinds | `orders` (the existing cake dashboard, unchanged) and `fitness`. Chosen when connecting; detection pre-selects it from the headers |
+| Switching | Sheet switcher in the dashboard header; URL carries the sheet (`/dashboard/<sheetId>`, `/dashboard/<sheetId>/chat`). `/dashboard` opens the last used sheet |
+| Sharing | **Per sheet.** Existing viewers keep access to the cake dashboard only; the fitness dashboard is private until shared |
+| Existing data | Migration backfills: current connection becomes kind `orders`, its dashboard and viewers are linked to it. Nothing changes for current viewers |
+| Chat cap | Still per person per day, across all sheets |
+| Demo | Stays cake-only |
+
+## Fitness sheet shape (from the owner's sheet)
+
+Title, subtitle and a summary band sit above the table; the header row is row 8. One row per exercise per session.
+
+| Column | Role | Notes |
+|---|---|---|
+| Date | Session date (required) | `2026-10-13`; text or real dates both accepted |
+| Exercise Name | Exercise (required) | Some names carry the block, e.g. "Seated Cable Rows / Back Block B1" |
+| Target Muscle | Muscle (optional) | Free text; grouped into chest / back / shoulders / biceps / triceps / forearms / legs / core by keywords |
+| Sets | Sets (optional) | Number; `—` = not logged |
+| Reps | Reps (optional) | Range `10-12` or single number; `—` = not logged |
+| Load / Setting | Load (optional) | `Bodyweight`, `6 kg DBs`, `6 kg / 8 kg DBs`, `Stack 5`, `Stack 7-8`, `Light Stack`. Parsed into kg, stack level or bodyweight; progress is only compared within the same unit |
+| Routine Block | Block (optional) | "Push Block P1" → day type "Push" |
+| Notes | — | Shown in session lists, not analysed |
+
+Parsing changes: the header row is the first row that looks like a header (several short text cells followed by data rows), not the first non-blank row, so title rows and summary bands are skipped.
+
+## Fitness dashboard
+
+- Date range filter (same as orders)
+- KPI cards: sessions, exercises, sets logged, average sets per session, each with Δ vs previous period
+- Sets per week (bar), split by day type (Push / Arms / Shoulders / Back …)
+- Sets by muscle group
+- Training calendar: days trained, with the session's day type
+- Exercise progress: per exercise, first vs latest load and reps, and a load-over-time chart for one chosen exercise
+- Recent sessions: grouped by date, with notes
+- Chat tools: sessions in a period, an exercise's history, sets by muscle
+
+## Build order
+
+1. [x] Several sheets per account: schema migration + backfill, sheet-scoped routes, switcher, per-sheet cache and sharing. Cake dashboard behaves exactly as before
+2. [ ] Smarter header-row detection (skip title rows and summary bands)
+3. [ ] Fitness kind: column roles, detection, confirm screen, parsing (sets, rep ranges, loads)
+4. [ ] Fitness metrics + widgets + dashboard generator, widget editing
+5. [ ] Fitness chat tools
+6. [ ] Privacy page update (workout data), README

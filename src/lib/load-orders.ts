@@ -1,7 +1,5 @@
 import "server-only";
-import { eq } from "drizzle-orm";
-import { getDb } from "@/db";
-import { sheetConnections } from "@/db/schema";
+import type { Connection } from "./access";
 import { getSheet } from "./google/cached-sheet";
 import { isCompleteMapping, parseOrders, type Order, type UnpricedOrder } from "./orders";
 
@@ -15,15 +13,9 @@ export type LoadedOrders =
     }
   | { ok: false; problem: string };
 
-/** The user's connected sheet, parsed with their confirmed columns (via the ~30s sheet cache). */
-export async function loadOrders(userId: string): Promise<LoadedOrders> {
-  const [connection] = await getDb()
-    .select()
-    .from(sheetConnections)
-    .where(eq(sheetConnections.userId, userId));
-  if (!connection) return { ok: false, problem: "Connect a Google Sheet first." };
-
-  const result = await getSheet(userId, connection.spreadsheetId);
+/** A connected orders sheet, parsed with its confirmed columns (via the ~30s sheet cache). */
+export async function loadOrders(connection: Connection): Promise<LoadedOrders> {
+  const result = await getSheet(connection.userId, connection.spreadsheetId);
   if (!result.ok) return { ok: false, problem: result.problem };
 
   const mapping = connection.columnMapping;

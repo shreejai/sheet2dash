@@ -16,7 +16,7 @@ import { chatUsage } from "@/db/schema";
 import { GROUP_BY, SORT_BY, aggregate, listOrders } from "@/lib/chat-tools";
 import { WEEKDAYS, todayIso, weekdayIndex } from "@/lib/dates";
 import { formatDate } from "@/lib/format";
-import { getAccess } from "@/lib/access";
+import { getSheetAccess } from "@/lib/access";
 import { loadOrders } from "@/lib/load-orders";
 
 const MODEL = process.env.OPENAI_MODEL || "gpt-5.4-nano";
@@ -45,12 +45,15 @@ const text = (m: UIMessage) =>
     .trim();
 
 export async function POST(req: Request) {
-  const access = await getAccess();
+  const body = (await req.json().catch(() => null)) as {
+    messages?: unknown;
+    sheetId?: unknown;
+  } | null;
+  const access = await getSheetAccess(body?.sheetId);
   if (!access) return new Response("Please sign in again.", { status: 401 });
-  // Questions count against the person asking; the data is the dashboard they can see.
-  const { userId, ownerId } = access;
+  // Questions count against the person asking; the data is the sheet they're viewing.
+  const { userId, connection } = access;
 
-  const body = (await req.json().catch(() => null)) as { messages?: unknown } | null;
   const validated = await safeValidateUIMessages({ messages: body?.messages });
   if (!validated.success) return new Response("That message couldn't be read.", { status: 400 });
 
@@ -85,7 +88,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const data = await loadOrders(ownerId);
+  const data = await loadOrders(connection);
   if (!data.ok) return new Response(data.problem, { status: 409 });
   const { orders, unpriced } = data;
 

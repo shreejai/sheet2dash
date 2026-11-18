@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { connectSheet, getPickerToken } from "./actions";
@@ -27,10 +28,14 @@ function loadPicker() {
 export function ConnectSheetButton({
   children = "Connect Google Sheet",
   variant = "default",
+  replaceSheetId,
 }: {
   children?: React.ReactNode;
   variant?: "default" | "outline";
+  /** Point this sheet at the picked file instead of adding another sheet. */
+  replaceSheetId?: string;
 }) {
+  const router = useRouter();
   const { user } = useUser();
   const [opening, setOpening] = useState(false);
   const [saving, startSaving] = useTransition();
@@ -69,7 +74,7 @@ export function ConnectSheetButton({
             .setMode(google.picker.DocsViewMode.LIST)
             .setIncludeFolders(true),
         )
-        .setTitle("Pick your orders spreadsheet")
+        .setTitle("Pick a spreadsheet")
         .setOAuthToken(token.token)
         .setDeveloperKey(process.env.NEXT_PUBLIC_GOOGLE_API_KEY!)
         // The project number. Lets drive.file grant access to the picked file.
@@ -78,8 +83,9 @@ export function ConnectSheetButton({
           if (data.action !== google.picker.Action.PICKED || !data.docs?.[0]) return;
           const { id } = data.docs[0];
           startSaving(async () => {
-            const result = await connectSheet(id);
+            const result = await connectSheet(id, replaceSheetId);
             if (!result.ok) setError(result.error);
+            else if (result.sheetId !== replaceSheetId) router.push(`/dashboard/${result.sheetId}`);
           });
         })
         .build()

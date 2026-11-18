@@ -2,7 +2,9 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { listSheets } from "@/lib/access";
 import { TabBar, TopNav } from "./nav-links";
+import { SheetSwitcher } from "./sheet-switcher";
 
 export default function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
   return (
@@ -14,10 +16,13 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
         <div className="mx-auto flex h-11 w-full max-w-5xl items-center justify-between gap-3 px-4 sm:h-13">
-          <div className="flex min-w-0 items-center gap-4">
-            <Link href="/dashboard" className="headline pressable">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+            <Link href="/dashboard" className="headline pressable shrink-0">
               Sheet2Dash
             </Link>
+            <Suspense fallback={null}>
+              <Switcher />
+            </Suspense>
             <TopNav />
           </div>
           <div className="flex items-center gap-1">
@@ -34,4 +39,8 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
       <TabBar />
     </div>
   );
+}
+
+async function Switcher() {
+  return <SheetSwitcher sheets={await listSheets()} />;
 }

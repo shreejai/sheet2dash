@@ -9,11 +9,13 @@ import { ROLES, ROLE_KEYS, parseOrders, type ColumnMapping } from "@/lib/orders"
 import { saveColumnMapping } from "./actions";
 
 export function ColumnForm({
+  sheetId,
   headers,
   rows,
   initial,
   editing,
 }: {
+  sheetId: string;
   headers: string[];
   rows: MergedRow[];
   initial: ColumnMapping;
@@ -39,7 +41,7 @@ export function ColumnForm({
   function save() {
     setError(null);
     startSaving(async () => {
-      const result = await saveColumnMapping(mapping);
+      const result = await saveColumnMapping(sheetId, mapping);
       if (result && !result.ok) setError(result.error);
     });
   }
@@ -136,7 +138,7 @@ export function ColumnForm({
           {saving ? "Saving…" : "Looks right — build my dashboard"}
         </Button>
         {editing && (
-          <Button variant="ghost" nativeButton={false} render={<Link href="/dashboard" />}>
+          <Button variant="ghost" nativeButton={false} render={<Link href={`/dashboard/${sheetId}`} />}>
             Cancel
           </Button>
         )}

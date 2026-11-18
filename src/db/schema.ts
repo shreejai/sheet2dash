@@ -6,29 +6,43 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uuid,
 } from "drizzle-orm/pg-core";
 import type { ColumnMapping } from "../lib/orders";
 
-// Every table is keyed by the Clerk user id, so a second business can be
-// added later without a migration of existing rows.
+// Rows are keyed by the Clerk user id. A user can connect several sheets;
+// each sheet has its own kind, columns, dashboard layout and sharing list.
 
-/** The Google spreadsheet a user has connected (one per user in v1). */
-export const sheetConnections = pgTable("sheet_connections", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  userId: text("user_id").notNull().unique(),
-  spreadsheetId: text("spreadsheet_id").notNull(),
-  spreadsheetName: text("spreadsheet_name").notNull(),
-  /** Confirmed column roles, e.g. { dueDate: "due date", amount: "charged" }. Null until confirmed. */
-  columnMapping: jsonb("column_mapping").$type<ColumnMapping>(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+/** What a sheet holds, which decides its columns, dashboard and chat. */
+export const SHEET_KINDS = ["orders"] as const;
+export type SheetKind = (typeof SHEET_KINDS)[number];
 
-/** The widget layout generated for (and edited by) a user. */
+/** A Google spreadsheet a user has connected. */
+export const sheetConnections = pgTable(
+  "sheet_connections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id").notNull(),
+    spreadsheetId: text("spreadsheet_id").notNull(),
+    spreadsheetName: text("spreadsheet_name").notNull(),
+    kind: text("kind").$type<SheetKind>().notNull().default("orders"),
+    /** Confirmed column roles, e.g. { dueDate: "due date", amount: "charged" }. Null until confirmed. */
+    columnMapping: jsonb("column_mapping").$type<ColumnMapping>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  // The same file can't be connected twice by one user.
+  (t) => [unique("sheet_connections_user_sheet_unique").on(t.userId, t.spreadsheetId)],
+);
+
+/** The widget layout generated for (and edited by) the owner of a sheet. */
 export const dashboards = pgTable("dashboards", {
   id: uuid("id").primaryKey().defaultRandom(),
-  userId: text("user_id").notNull().unique(),
+  connectionId: uuid("connection_id")
+    .notNull()
+    .unique()
+    .references(() => sheetConnections.id, { onDelete: "cascade" }),
   spec: jsonb("spec").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -46,20 +60,22 @@ export const chatUsage = pgTable(
 );
 
 /**
- * People the owner has shared their dashboard with, by email. A signed-in
- * user whose verified email matches can view the owner's dashboard and chat
+ * People the owner has shared one sheet's dashboard with, by email. A signed-in
+ * user whose verified email matches can view that dashboard and chat
  * (read-only); the sheet is still read with the owner's Google access.
  */
 export const dashboardViewers = pgTable(
   "dashboard_viewers",
   {
-    ownerUserId: text("owner_user_id").notNull(),
+    connectionId: uuid("connection_id")
+      .notNull()
+      .references(() => sheetConnections.id, { onDelete: "cascade" }),
     /** Lower-cased. */
     email: text("email").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    primaryKey({ columns: [t.ownerUserId, t.email] }),
+    primaryKey({ columns: [t.connectionId, t.email] }),
     index("dashboard_viewers_email_idx").on(t.email),
   ],
 );

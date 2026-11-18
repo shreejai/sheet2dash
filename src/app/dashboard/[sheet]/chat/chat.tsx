@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
 import { ArrowUp, Calculator, ListChecks, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RichText } from "@/components/rich-text";
@@ -20,8 +21,13 @@ const TOOL_LABELS: Record<string, { label: string; Icon: typeof Calculator }> = 
   "tool-listOrders": { label: "Looked up orders", Icon: ListChecks },
 };
 
-export function Chat({ dailyLimit }: { dailyLimit: number }) {
-  const { messages, sendMessage, status, error, stop, regenerate } = useChat();
+export function Chat({ sheetId, dailyLimit }: { sheetId: string; dailyLimit: number }) {
+  // One conversation per sheet; switching sheets starts a fresh one.
+  const [transport] = useState(() => new DefaultChatTransport({ body: { sheetId } }));
+  const { messages, sendMessage, status, error, stop, regenerate } = useChat({
+    id: sheetId,
+    transport,
+  });
   const [input, setInput] = useState("");
   const bottom = useRef<HTMLDivElement>(null);
   const busy = status === "submitted" || status === "streaming";

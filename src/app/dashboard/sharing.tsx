@@ -6,8 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { addViewer, removeViewer, type ShareState } from "./actions";
 
-export function Sharing({ viewers }: { viewers: string[] }) {
-  const [state, add, adding] = useActionState<ShareState, FormData>(addViewer, undefined);
+export function Sharing({ sheetId, viewers }: { sheetId: string; viewers: string[] }) {
+  const [state, add, adding] = useActionState<ShareState, FormData>(
+    addViewer.bind(null, sheetId),
+    undefined,
+  );
   const [removing, startRemove] = useTransition();
 
   return (
@@ -30,7 +33,7 @@ export function Sharing({ viewers }: { viewers: string[] }) {
                   size="icon-sm"
                   variant="ghost"
                   disabled={removing}
-                  onClick={() => startRemove(() => removeViewer(email))}
+                  onClick={() => startRemove(() => removeViewer(sheetId, email))}
                   aria-label={`Stop sharing with ${email}`}
                   className="text-muted-foreground"
                 >

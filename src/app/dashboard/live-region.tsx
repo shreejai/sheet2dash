@@ -22,11 +22,13 @@ const clock = new Intl.DateTimeFormat("en-AU", {
  * reloads; a manual refresh dims it slightly so the click visibly registers.
  */
 export function LiveRegion({
+  sheetId,
   fetchedAt,
   header,
   actions,
   children,
 }: {
+  sheetId: string;
   /** Extra header buttons (the owner's Edit). */
   actions?: React.ReactNode;
   /** When the server last read the sheet from Google (ms since epoch). */
@@ -72,7 +74,7 @@ export function LiveRegion({
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => startRefresh(() => refreshSheet())}
+            onClick={() => startRefresh(() => refreshSheet(sheetId))}
             disabled={refreshing}
             aria-label="Refresh from Google Sheets"
           >
